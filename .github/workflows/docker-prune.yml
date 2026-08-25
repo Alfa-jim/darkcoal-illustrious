@@ -1,0 +1,24 @@
+name: Docker Prune
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prune_images:
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Check Docker Disk Usage (Before Prune)
+        run: |
+          echo "Checking Docker disk usage before pruning..."
+          docker system df
+
+      - name: Prune Docker Images
+        run: |
+          echo "Pruning Docker images older than 1 hour..."
+          docker image prune -a -f --filter "until=1h"
+          echo "Docker prune complete."
+
+      - name: Check Docker Disk Usage (After Prune)
+        run: |
+          echo "Checking Docker disk usage after pruning..."
+          docker system df

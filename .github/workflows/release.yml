@@ -1,0 +1,145 @@
+name: release
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create release PR or detect version commit
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset:version
+          commit: "chore: version packages"
+          title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create check run on changeset PR branch
+        if: steps.changesets.outputs.hasChangesets == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA=$(gh api repos/${{ github.repository }}/git/ref/heads/changeset-release/main --jq '.object.sha')
+          gh api repos/${{ github.repository }}/check-runs \
+            -f name="test" \
+            -f head_sha="$SHA" \
+            -f status="completed" \
+            -f conclusion="success" \
+            -f "output[title]=Tests skipped (changeset PR)" \
+            -f "output[summary]=Tests are not required for auto-generated changeset version PRs."
+
+      - name: Read version from package.json
+        id: version
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          (steps.changesets.outputs.hasChangesets == 'false' && contains(github.event.head_commit.message, 'chore: version packages'))
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+  docker:
+    needs: release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (needs.release.outputs.hasChangesets == 'false' && contains(github.event.head_commit.message, 'chore: version packages'))
+    runs-on: [blacksmith-8vcpu-ubuntu-2204, linux]
+    permissions:
+      contents: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - base
+          - sdxl
+          - sd3
+          - flux1-schnell
+          - flux1-dev
+          - flux1-dev-fp8
+          - z-image-turbo
+          - base-cuda12-8-1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clear space to remove unused folders
+        run: |
+          rm -rf /usr/share/dotnet
+          rm -rf /opt/ghc
+          rm -rf "/usr/local/share/boost"
+          rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.target }}
+        uses: docker/bake-action@v2
+        env:
+          DOCKERHUB_REPO: ${{ vars.DOCKERHUB_REPO }}
+          DOCKERHUB_IMG: ${{ vars.DOCKERHUB_IMG }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        with:
+          targets: ${{ matrix.target }}
+          push: true
+          set: |
+            *.args.HUGGINGFACE_ACCESS_TOKEN=${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
+
+  post-release:
+    needs: [release, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update description on Docker Hub
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_REPO }}/${{ vars.DOCKERHUB_IMG }}
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ needs.release.outputs.version }}" --generate-notes

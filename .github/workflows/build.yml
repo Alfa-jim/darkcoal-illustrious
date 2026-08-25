@@ -1,0 +1,48 @@
+name: Build and Push to GHCR (illustrious)
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase owner
+        id: owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Build and push illustrious
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          target: final
+          build-args: |
+            MODEL_TYPE=illustrious
+            COMFYUI_VERSION=0.29.0
+            CUDA_VERSION_FOR_COMFY=12.8
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:latest
+            ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:illustrious
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
