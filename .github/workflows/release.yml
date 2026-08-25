@@ -1,9 +1,9 @@
 name: release
 
+# DISABLED in this fork — darkcoal-illustrious only builds `illustrious` via build.yml (GHCR).
+# Upstream release.yml builds 8 DockerHub variants (sdxl/sd3/flux/...) on every push to main,
+# which is why you saw other models downloading. Keep manual dispatch only for emergencies.
 on:
-  push:
-    branches:
-      - "main"
   workflow_dispatch:
 
 jobs:
