@@ -44,5 +44,6 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:latest
             ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:illustrious
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # No GHA cache — the cache export was hanging 30+ min and caused the cancel.
+          # The build itself (base 43s + downloader 93s + final copy 27s) completes fine
+          # without it; next runs will just rebuild those layers (~5 min base reuse via DockerHub pull).
