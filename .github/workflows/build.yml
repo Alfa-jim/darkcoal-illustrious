@@ -1,4 +1,4 @@
-name: Build and Push to GHCR (illustrious)
+﻿name: Build and Push to GHCR (illustrious)
 
 on:
   push:
@@ -29,6 +29,9 @@ jobs:
         id: owner
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
+      # No GHA cache — cache export was hanging 40 min (8 GB layers) and caused
+      # "The operation was canceled" after the image had already been pushed.
+
       - name: Build and push illustrious
         uses: docker/build-push-action@v6
         with:
@@ -44,6 +47,3 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:latest
             ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:illustrious
-          # No GHA cache — the cache export was hanging 30+ min and caused the cancel.
-          # The build itself (base 43s + downloader 93s + final copy 27s) completes fine
-          # without it; next runs will just rebuild those layers (~5 min base reuse via DockerHub pull).
