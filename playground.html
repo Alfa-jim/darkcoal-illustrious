@@ -137,7 +137,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
       <button class="btn small ghost" onclick="clearLoras()">clear</button>
     </div>
     <div id="loras" style="margin-top:8px"></div>
-    <div class="small" style="margin-top:6px">Turbo quant: <code>dmd2-speed-lora-sdxl-pony-illustrious</code> @ 1.0 + 4 steps / cfg 1.5 + <code>euler + sgm_uniform</code> ≈ 1.5s on 4090. Good NLU out of the box (natural language prompt works); image ref via IPAdapter below.</div>
+    <div class="small" style="margin-top:6px">Turbo (creator says): <code>dmd2-speed-lora</code> @ <b>0.7</b> + <b>8 steps, CFG 1.4–1.8, LCM / Normal</b> (~2.5s). 4 steps works but washes out/mushy.</div>
 
     <h2>Image reference (IPAdapter)</h2>
     <div class="small">Drop a face/style ref — wired as <code>LoadImage(ref) + CLIPVisionEncode + IPAdapterApply</code> (needs <code>ip-adapter_sdxl</code> + <code>clip_vision/model</code> on volume + <code>ComfyUI-IPAdapter-Plus</code> node baked). Leave off for plain txt2img.</div>
@@ -257,9 +257,9 @@ function setMode(m){
   $('hint').textContent = m==='txt2img' ? 'txt2img: EmptyLatentImage → KSampler.' : m==='img2img' ? 'img2img: LoadImage → VAEEncode → denoise.' : 'inpaint: LoadImage + mask → VAEEncode (masked) → denoise.';
   log('mode: '+m);
 }
-['steps','cfg','denoise','hiresDenoise'].forEach(id=>{
+['steps','cfg','denoise','hiresDenoise','ipWeight'].forEach(id=>{
   const el=$(id); if(!el) return;
-  el.addEventListener('input',()=>{ const v=$(id+'_v'); if(v) v.textContent=el.value; });
+  el.addEventListener('input',()=>{ const v=$(id+'_v'); if(v) v.textContent = id==='ipWeight' ? Number(el.value).toFixed(2) : el.value; });
 });
 $('hiResFix').addEventListener('change',()=> $('hiresOpts').classList.toggle('hidden', !$('hiResFix').checked));
 function syncWH(){}
@@ -374,7 +374,7 @@ $('ipWeight')?.addEventListener('input',()=> $('ipWeight_v').textContent=Number(
 function preset(k){
   if(k==='anime'){ $('prompt').value='masterpiece, best quality, anime, 1girl, detailed face, soft lighting, intricate background'; $('neg').value='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'; $('steps').value=28; $('cfg').value=6.5; $('sampler').value='euler_ancestral'; $('scheduler').value='normal'; clearLoras(); }
   if(k==='photo'){ $('prompt').value='masterpiece, best quality, photo, 1girl, realistic skin, natural lighting, bokeh'; $('cfg').value=5; $('sampler').value='dpmpp_2m'; $('scheduler').value='karras'; }
-  if(k==='turbo'){ clearLoras(); addLora('dmd2-speed-lora-sdxl-pony-illustrious',1); $('steps').value=4; $('cfg').value=1.5; $('sampler').value='euler'; $('scheduler').value='sgm_uniform'; log('turbo: DMD2 4-step cfg 1.5 euler/sgm_uniform'); }
+  if(k==='turbo'){ clearLoras(); addLora('dmd2-speed-lora-sdxl-pony-illustrious',0.7); $('steps').value=8; $('cfg').value=1.6; $('sampler').value='lcm'; $('scheduler').value='normal'; log('turbo: DMD2 8-step 0.7 cfg 1.6 lcm/normal (Civitai creator recommended)'); }
   if(k==='portrait'){ $('width').value=832; $('height').value=1216; $('steps').value=28; }
   if(k==='landscape'){ $('width').value=1216; $('height').value=832; $('steps').value=28; }
   ['steps','cfg'].forEach(id=>{ const v=$(id+'_v'); if(v) v.textContent=$(id).value; });

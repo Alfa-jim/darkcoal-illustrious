@@ -1,0 +1,115 @@
+﻿{
+    "input":  {
+                  "workflow":  {
+                                   "30":  {
+                                              "inputs":  {
+                                                             "ckpt_name":  "Illustrious-XL-v2.0.safetensors"
+                                                         },
+                                              "class_type":  "CheckpointLoaderSimple"
+                                          },
+                                   "100":  {
+                                               "inputs":  {
+                                                              "lora_name":  "dmd2-speed-lora-sdxl-pony-illustrious.safetensors",
+                                                              "strength_model":  0.7,
+                                                              "strength_clip":  0.7,
+                                                              "model":  [
+                                                                            "30",
+                                                                            0
+                                                                        ],
+                                                              "clip":  [
+                                                                           "30",
+                                                                           1
+                                                                       ]
+                                                          },
+                                               "class_type":  "LoraLoader"
+                                           },
+                                   "27":  {
+                                              "inputs":  {
+                                                             "width":  1024,
+                                                             "height":  1024,
+                                                             "batch_size":  1
+                                                         },
+                                              "class_type":  "EmptyLatentImage"
+                                          },
+                                   "6":  {
+                                             "inputs":  {
+                                                            "text":  "masterpiece, best quality, anime, 1girl, long silver hair, blue eyes, soft lighting, detailed face, intricate background",
+                                                            "clip":  [
+                                                                         "100",
+                                                                         1
+                                                                     ]
+                                                        },
+                                             "class_type":  "CLIPTextEncode"
+                                         },
+                                   "33":  {
+                                              "inputs":  {
+                                                             "text":  "",
+                                                             "clip":  [
+                                                                          "100",
+                                                                          1
+                                                                      ]
+                                                         },
+                                              "class_type":  "CLIPTextEncode"
+                                          },
+                                   "31":  {
+                                              "inputs":  {
+                                                             "seed":  42,
+                                                             "steps":  8,
+                                                             "cfg":  1.6,
+                                                             "sampler_name":  "lcm",
+                                                             "scheduler":  "normal",
+                                                             "denoise":  1,
+                                                             "model":  [
+                                                                           "100",
+                                                                           0
+                                                                       ],
+                                                             "positive":  [
+                                                                              "6",
+                                                                              0
+                                                                          ],
+                                                             "negative":  [
+                                                                              "33",
+                                                                              0
+                                                                          ],
+                                                             "latent_image":  [
+                                                                                  "27",
+                                                                                  0
+                                                                              ]
+                                                         },
+                                              "class_type":  "KSampler"
+                                          },
+                                   "8":  {
+                                             "inputs":  {
+                                                            "samples":  [
+                                                                            "31",
+                                                                            0
+                                                                        ],
+                                                            "vae":  [
+                                                                        "30",
+                                                                        2
+                                                                    ]
+                                                        },
+                                             "class_type":  "VAEDecode"
+                                         },
+                                   "9":  {
+                                             "inputs":  {
+                                                            "filename_prefix":  "ComfyUI",
+                                                            "images":  [
+                                                                           "8",
+                                                                           0
+                                                                       ]
+                                                        },
+                                             "class_type":  "SaveImage"
+                                         },
+                                   "38":  {
+                                              "inputs":  {
+                                                             "images":  [
+                                                                            "8",
+                                                                            0
+                                                                        ]
+                                                         },
+                                              "class_type":  "PreviewImage"
+                                          }
+                               }
+              }
+}
