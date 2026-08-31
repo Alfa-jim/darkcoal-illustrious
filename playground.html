@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>darkcoal-illustrious — Playground</title>
+<style>
+:root{--bg:#0a0a0f;--panel:#14141d;--panel2:#1c1c2a;--border:#2a2a3a;--accent:#8b5cf6;--accent2:#a78bfa;--text:#e8e8f0;--muted:#8888a0;--ok:#22c55e;--err:#ef4444;--warn:#f59e0b}
+*{box-sizing:border-box}body{margin:0;font-family:ui-sans,system-ui,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent2)}
+h1{font-size:18px;margin:0;letter-spacing:.04em}h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 10px}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(10,10,15,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.topbar .badge{font-size:11px;padding:3px 8px;border-radius:99px;background:var(--panel2);border:1px solid var(--border);color:var(--muted)}
+.topbar input{flex:1;min-width:220px;max-width:420px}
+.layout{display:grid;grid-template-columns:340px 1fr 380px;min-height:calc(100vh - 52px)}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}.side{border-right:none;border-bottom:1px solid var(--border)}}
+.side{background:var(--panel);border-right:1px solid var(--border);padding:16px;overflow:auto}
+.center{padding:16px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px}
+label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin:10px 0 6px}
+label:first-child{margin-top:0}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:9px 10px;font-size:13px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:72px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--border)}
+.btn{appearance:none;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#6d28d9);border-color:transparent;color:white}
+.btn.primary:disabled{opacity:.6;cursor:not-allowed}
+.btn.ghost{background:transparent}
+.btn.small{padding:7px 10px;font-size:12px;border-radius:10px}
+.range{display:flex;gap:10px;align-items:center}
+.range input[type=range]{flex:1}
+.range b{font-size:12px;color:var(--muted);min-width:44px;text-align:right}
+.drop{border:1px dashed var(--border);border-radius:14px;padding:14px;text-align:center;background:var(--panel2);cursor:pointer}
+.drop.drag{border-color:var(--accent);background:rgba(139,92,246,.08)}
+.thumb{width:100%;max-height:240px;object-fit:contain;border-radius:10px;background:#0b0b10;border:1px solid var(--border)}
+.kv{font-size:12px;color:var(--muted);line-height:1.6}
+.kv b{color:var(--text)}
+.log{font-family:ui-monospace,Consolas,monospace;font-size:11px;white-space:pre-wrap;background:#0b0b10;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:260px;overflow:auto}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.gallery .tile{position:relative;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel2)}
+.gallery img{width:100%;display:block}
+.gallery .meta{padding:8px;font-size:11px;color:var(--muted)}
+.badge-ok{color:var(--ok)} .badge-err{color:var(--err)}
+.switch{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.switch input{accent-color:var(--accent)}
+hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+.small{font-size:11px;color:var(--muted)}
+.lora{display:grid;grid-template-columns:1fr 90px 32px;gap:8px;align-items:center;margin-bottom:8px}
+.lora input[type=number]{text-align:center}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>darkcoal-illustrious</h1>
+  <span class="badge">Illustrious-XL-v2.0 · 4090 24GB · ghcr.io/alfa-jim/darkcoal-illustrious</span>
+  <input id="endpoint" type="text" value="" placeholder="RunPod endpoint URL (https://api.runpod.ai/v2/<endpoint-id>/runsync)"/>
+  <input id="apikey" type="text" value="" placeholder="RunPod API key (rpa_...)"/>
+  <button class="btn small ghost" onclick="toggleKeys()">hide keys</button>
+  <span id="status" class="badge">idle</span>
+</div>
+
+<div class="layout">
+  <!-- LEFT: prompt + mode -->
+  <div class="side">
+    <h2>Mode</h2>
+    <div style="display:flex;gap:8px">
+      <button id="mode_txt2img" class="btn small primary" onclick="setMode('txt2img')">txt2img</button>
+      <button id="mode_img2img" class="btn small" onclick="setMode('img2img')">img2img</button>
+      <button id="mode_inpaint" class="btn small" onclick="setMode('inpaint')">inpaint</button>
+    </div>
+    <div id="hint" class="small" style="margin-top:8px">txt2img: EmptyLatentImage → KSampler. img2img: LoadImage → VAEEncode → denoise.</div>
+
+    <h2>Prompt</h2>
+    <label>Positive</label>
+    <textarea id="prompt" rows="5">masterpiece, best quality, anime, 1girl, long blonde hair, blue eyes, soft lighting, detailed face, intricate background</textarea>
+    <label>Negative</label>
+    <textarea id="neg" rows="3">lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry</textarea>
+    <div class="row">
+      <div><label>Seed (-1 = random)</label><input id="seed" type="number" value="-1"/></div>
+      <div><label>Batch</label><input id="batch" type="number" value="1" min="1" max="4"/></div>
+    </div>
+
+    <h2>Reference images</h2>
+    <div id="drop" class="drop" onclick="document.getElementById('file').click()" ondrop="onDrop(event)" ondragover="onDrag(event)" ondragleave="this.classList.remove('drag')">
+      <div style="font-weight:700">Drop images here or click</div>
+      <div class="small">sent as <code>input.images</code> base64 — referenced by LoadImage nodes. Names must match.</div>
+    </div>
+    <input id="file" type="file" accept="image/*" multiple class="hidden" onchange="onFiles(this.files)"/>
+    <div id="thumbs" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn small ghost" onclick="clearImages()">clear refs</button>
+      <button class="btn small ghost" onclick="pastePrompt()">paste → prompt</button>
+    </div>
+    <div id="inpaintHint" class="small hidden" style="margin-top:8px">For inpaint: upload image as <code>ref.png</code> and paint a mask (white = repaint) below, or upload a mask as <code>mask.png</code>.</div>
+
+    <h2>Sampler</h2>
+    <div class="row">
+      <div><label>Steps</label><div class="range"><input id="steps" type="range" min="4" max="60" value="28"/><b id="steps_v">28</b></div></div>
+      <div><label>CFG</label><div class="range"><input id="cfg" type="range" min="1" max="12" step="0.5" value="6.5"/><b id="cfg_v">6.5</b></div></div>
+    </div>
+    <div class="row">
+      <div><label>Sampler</label>
+        <select id="sampler">
+          <option>euler_ancestral</option><option>euler</option><option>heun</option><option>dpmpp_2m</option><option>dpmpp_sde</option><option>dpmpp_2m_sde</option><option>dpm_2</option><option>lcm</option><option>uni_pc</option>
+        </select>
+      </div>
+      <div><label>Scheduler</label>
+        <select id="scheduler">
+          <option>normal</option><option>karras</option><option>exponential</option><option>simple</option><option>sgm_uniform</option><option>ddim_uniform</option>
+        </select>
+      </div>
+    </div>
+    <div id="denoiseWrap" class="hidden">
+      <label>Denoise (img2img strength)</label>
+      <div class="range"><input id="denoise" type="range" min="0.1" max="1" step="0.05" value="0.65"/><b id="denoise_v">0.65</b></div>
+      <div class="small">0.5 subtle, 0.75 strong. In txt2img it's always 1.0.</div>
+    </div>
+
+    <h2>Size</h2>
+    <div class="row3">
+      <div><label>Width</label><select id="width" onchange="syncWH()"><option>512</option><option>768</option><option>832</option><option selected>1024</option><option>1152</option><option>1280</option><option>1536</option></select></div>
+      <div><label>Height</label><select id="height" onchange="syncWH()"><option>512</option><option>768</option><option>832</option><option selected>1024</option><option>1152</option><option>1280</option><option>1536</option></select></div>
+      <div><label>AR</label><select id="ar" onchange="applyAR()"><option value="">custom</option><option value="1:1">1:1</option><option value="3:4">3:4</option><option value="4:3">4:3</option><option value="9:16">9:16</option><option value="16:9">16:9</option><option value="832:1216">832×1216</option><option value="1216:832">1216×832</option></select></div>
+    </div>
+    <div class="small" style="margin-top:6px">4090 tip: 1024² ~10 GB, 1536² ~16 GB — keep ≤1216×832 if you chain LoRAs.</div>
+
+    <h2>LoRAs</h2>
+    <div class="small">Put LoRAs in <code>/runpod-volume/models/loras/</code> (serverless) or <code>/workspace/models/loras/</code> (Pod). They appear via <code>extra_model_paths.yaml</code>. Entries below become <code>LoraLoader</code> nodes (after checkpoint).</div>
+    <div class="small" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn small ghost" onclick="addLora('dmd2-speed-lora-sdxl-pony-illustrious',1)">+ DMD2 4-step (turbo quant)</button>
+      <button class="btn small ghost" onclick="addLora('',0.8)">+ custom LoRA</button>
+      <button class="btn small ghost" onclick="clearLoras()">clear</button>
+    </div>
+    <div id="loras" style="margin-top:8px"></div>
+    <div class="small" style="margin-top:6px">Turbo quant: <code>dmd2-speed-lora-sdxl-pony-illustrious</code> @ 1.0 + 4 steps / cfg 1.5 + <code>euler + sgm_uniform</code> ≈ 1.5s on 4090. Good NLU out of the box (natural language prompt works); image ref via IPAdapter below.</div>
+
+    <h2>Image reference (IPAdapter)</h2>
+    <div class="small">Drop a face/style ref — wired as <code>LoadImage(ref) + CLIPVisionEncode + IPAdapterApply</code> (needs <code>ip-adapter_sdxl</code> + <code>clip_vision/model</code> on volume + <code>ComfyUI-IPAdapter-Plus</code> node baked). Leave off for plain txt2img.</div>
+    <label class="switch"><input id="useIPAdapter" type="checkbox" onchange="syncIPAdapter()"/> enable IPAdapter (image reference)</label>
+    <div id="ipOpts" class="hidden">
+      <label>Weight</label><div class="range"><input id="ipWeight" type="range" min="0" max="1.5" step="0.05" value="0.7"/><b id="ipWeight_v">0.70</b></div>
+      <label>IPAdapter model</label><select id="ipAdapter"><option>ip-adapter_sdxl.safetensors</option><option>ip-adapter-plus_sdxl_vit-h.safetensors</option><option>ip-adapter-faceid-plusv2_sdxl.bin</option></select>
+      <div class="small">Weight 0.6 subtle, 1.0 strong. Use plus/faceid variants for portrait.</div>
+    </div>
+    <h2>Options</h2>
+    <label class="switch"><input id="hiResFix" type="checkbox"/> Hires fix (latent upscale ×1.5 + 2nd KSampler)</label>
+    <div id="hiresOpts" class="hidden">
+      <div class="row"><div><label>Upscale</label><select id="hiresScale"><option>1.5</option><option>2</option></select></div><div><label>Hires steps</label><input id="hiresSteps" type="number" value="12" min="4" max="30"/></div></div>
+      <label>Hires denoise</label><div class="range"><input id="hiresDenoise" type="range" min="0.1" max="0.8" step="0.05" value="0.35"/><b id="hiresDenoise_v">0.35</b></div>
+    </div>
+    <label class="switch"><input id="returnPreview" type="checkbox" checked/> include PreviewImage (faster preview)</label>
+
+  </div>
+
+  <!-- CENTER: image + mask painter -->
+  <div class="center">
+    <div class="card">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button id="go" class="btn primary" onclick="generate()">Generate — runsync</button>
+        <button class="btn ghost small" onclick="randomSeed()">random seed</button>
+        <button class="btn ghost small" onclick="useLastSeed()">reuse last seed</button>
+        <span id="timer" class="badge">—</span>
+        <span class="small" id="seedInfo"></span>
+      </div>
+      <hr/>
+      <div id="previewWrap" style="display:grid;grid-template-columns:1fr;gap:10px">
+        <div id="preview" style="min-height:340px;display:grid;place-items:center;border:1px solid var(--border);border-radius:14px;background:#0b0b10;overflow:hidden">
+          <div class="small" style="padding:24px;text-align:center">No image yet — hit Generate. Results appear here and in the right gallery. Drag reference images in on the left for img2img/inpaint.</div>
+        </div>
+        <div id="maskWrap" class="hidden card" style="margin:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <b style="font-size:12px">Inpaint mask painter</b>
+            <span class="small">white = inpaint, black = keep. Brush <input id="brush" type="range" min="4" max="64" value="24" style="width:90px;vertical-align:middle"/> <button class="btn small ghost" onclick="clearMask()">clear</button> <button class="btn small ghost" onclick="invertMask()">invert</button></span>
+          </div>
+          <canvas id="maskCanvas" width="512" height="512" style="width:100%;max-height:420px;background:#111;border:1px solid var(--border);border-radius:10px;margin-top:8px;touch-action:none"></canvas>
+          <div class="small">Mask is sent as <code>mask.png</code> (L). Make sure your workflow uses it — inpaint mode wires it automatically.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <b style="font-size:12px">Raw workflow (editable)</b>
+      <div class="small">This is the exact JSON sent to ComfyUI. Edit it if you want full control — Generate will use this if you toggle it on.</div>
+      <label class="switch"><input id="useCustom" type="checkbox" onchange="toggleCustom()"/> use custom workflow below</label>
+      <textarea id="customJson" rows="10" placeholder='{"30":{"inputs":{"ckpt_name":"Illustrious-XL-v2.0.safetensors"},"class_type":"CheckpointLoaderSimple"}, ...}'></textarea>
+      <div class="row"><button class="btn small ghost" onclick="copyWorkflow()">copy</button><button class="btn small ghost" onclick="fillCustom()">fill from current settings</button><button class="btn small ghost" onclick="formatCustom()">format</button></div>
+    </div>
+
+    <div class="card">
+      <b style="font-size:12px">Log</b>
+      <div id="log" class="log">idle</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: gallery + export -->
+  <div class="side">
+    <h2>Gallery</h2>
+    <div class="row"><button class="btn small ghost" onclick="clearGallery()">clear</button><button class="btn small ghost" onclick="exportGallery()">export .zip (images)</button></div>
+    <div id="gallery" class="gallery" style="margin-top:10px"></div>
+
+    <h2>Share / Export</h2>
+    <div class="row"><button class="btn small" onclick="copyShareLink()">copy share link</button><button class="btn small ghost" onclick="downloadPayload()">payload .json</button></div>
+    <div class="small" style="margin-top:8px">Share link encodes prompt + settings + ref thumbnails are NOT in URL (too big) — share refs separately.</div>
+
+    <h2>Presets</h2>
+    <div class="row"><button class="btn small ghost" onclick="preset('anime')">anime</button><button class="btn small ghost" onclick="preset('photo')">photo-ish</button><button class="btn small ghost" onclick="preset('turbo')">⚡ turbo 4-step</button></div>
+    <div class="row" style="margin-top:6px"><button class="btn small ghost" onclick="preset('portrait')">portrait</button><button class="btn small ghost" onclick="preset('landscape')">landscape</button></div>
+
+    <h2>Endpoint</h2>
+    <div class="kv">
+      Image: <b>ghcr.io/alfa-jim/darkcoal-illustrious:latest</b><br/>
+      Disk: <b>50 GB</b> · GPU <b>4090 24GB</b> · model <b>Illustrious-XL-v2.0</b> baked<br/>
+      Try <b>/runsync</b> (sync) or <a href="#" onclick="setEndpointMode('run');return false">/run</a> (async poll). Current: <b id="epMode">runsync</b>
+    </div>
+    <label>Endpoint path</label>
+    <select id="epPath" onchange="syncEndpoint()"><option value="runsync" selected>runsync (wait)</option><option value="run">run (poll /status)</option></select>
+    <div class="small">RunPod returns base64 or <code>s3_url</code> per node output.</div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.getElementById(s);
+let mode = 'txt2img';
+let refs = []; // {name, dataUrl, base64}
+let lastSeed = null;
+let maskDirty = false;
+let epMode = 'runsync';
+
+function log(m){ const el=$('log'); const t=new Date().toLocaleTimeString(); el.textContent += `\n[${t}] ${m}`; el.scrollTop = el.scrollHeight; }
+function setStatus(t, ok){ $('status').textContent=t; $('status').style.color = ok===true?'var(--ok)': ok===false?'var(--err)':''; }
+function toggleKeys(){ const a=$('apikey'), e=$('endpoint'); const t=a.type==='password'?'text':'password'; a.type=t; e.type=t; }
+$('apikey').type='password'; $('endpoint').type='password';
+try{
+  const se=localStorage.getItem('illustrious.endpoint'); if(se) $('endpoint').value=se;
+  const sk=localStorage.getItem('illustrious.apikey'); if(sk) $('apikey').value=sk;
+  // compat: if user came from qwen-fast playground, offer to migrate
+  if(!se){ const qe=localStorage.getItem('qwen.endpoint'); if(qe) $('endpoint').value=qe; }
+  if(!sk){ const qk=localStorage.getItem('qwen.apikey'); if(qk) $('apikey').value=qk; }
+  $('endpoint').addEventListener('input',()=> localStorage.setItem('illustrious.endpoint',$('endpoint').value));
+  $('apikey').addEventListener('input',()=> localStorage.setItem('illustrious.apikey',$('apikey').value));
+  if(se||sk) log('restored endpoint/apikey from localStorage');
+}catch(e){}
+
+function setMode(m){
+  mode=m;
+  $('mode_txt2img').className = m==='txt2img' ? 'btn small primary' : 'btn small';
+  $('mode_img2img').className = m==='img2img' ? 'btn small primary' : 'btn small';
+  $('mode_inpaint').className = m==='inpaint' ? 'btn small primary' : 'btn small';
+  $('denoiseWrap').classList.toggle('hidden', m==='txt2img');
+  $('maskWrap').classList.toggle('hidden', m!=='inpaint');
+  $('inpaintHint').classList.toggle('hidden', m!=='inpaint');
+  $('hint').textContent = m==='txt2img' ? 'txt2img: EmptyLatentImage → KSampler.' : m==='img2img' ? 'img2img: LoadImage → VAEEncode → denoise.' : 'inpaint: LoadImage + mask → VAEEncode (masked) → denoise.';
+  log('mode: '+m);
+}
+['steps','cfg','denoise','hiresDenoise'].forEach(id=>{
+  const el=$(id); if(!el) return;
+  el.addEventListener('input',()=>{ const v=$(id+'_v'); if(v) v.textContent=el.value; });
+});
+$('hiResFix').addEventListener('change',()=> $('hiresOpts').classList.toggle('hidden', !$('hiResFix').checked));
+function syncWH(){}
+function applyAR(){
+  const v=$('ar').value; if(!v) return;
+  const [a,b]=v.split(':').map(Number); if(!a||!b) return;
+  // keep max 1024 on long edge, snap to 64
+  let w=1024, h=Math.round(1024*b/a);
+  if (h>1024){ h=1024; w=Math.round(1024*a/b); }
+  w = Math.round(w/64)*64; h=Math.round(h/64)*64;
+  $('width').value=w; $('height').value=h;
+}
+
+function onDrag(e){ e.preventDefault(); $('drop').classList.add('drag'); }
+function onDrop(e){ e.preventDefault(); $('drop').classList.remove('drag'); const f=e.dataTransfer.files; if(f.length) onFiles(f); }
+function onFiles(files){
+  [...files].forEach((file,i)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const dataUrl=reader.result;
+      const base64 = dataUrl.split(',')[1];
+      // auto-name: first is ref.png, second mask.png if inpaint hint, else ref2.png etc.
+      let name;
+      if (refs.length===0) name='ref.png';
+      else if (mode==='inpaint' && refs.length===1 && !refs.find(r=>r.name==='mask.png')) name='mask.png';
+      else name=`ref${refs.length+1}.png`;
+      // if file is mask and we're in inpaint, force mask.png
+      if (file.name.toLowerCase().includes('mask')) name='mask.png';
+      refs.push({name, dataUrl, base64});
+      renderThumbs();
+      if (mode==='inpaint' && name!=='mask.png') loadRefToMask(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function renderThumbs(){
+  const wrap=$('thumbs'); wrap.innerHTML='';
+  refs.forEach((r,i)=>{
+    const d=document.createElement('div'); d.style.position='relative';
+    // infer ext for display
+    d.innerHTML = `<img class="thumb" src="${r.dataUrl}"/><div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.6);padding:2px 6px;border-radius:99px;font-size:11px">${r.name}</div><button class="btn small ghost" style="position:absolute;top:6px;right:6px;padding:4px 6px" onclick="removeRef(${i})">✕</button>`;
+    // click to rename
+    d.querySelector('img').onclick=()=>{ const n=prompt('Rename (must match LoadImage node)', r.name); if(n){ r.name=n; renderThumbs(); } };
+    wrap.appendChild(d);
+  });
+  // also update mask if first ref changed
+  if (refs[0] && mode==='inpaint') loadRefToMask(refs[0].dataUrl);
+}
+function removeRef(i){ refs.splice(i,1); renderThumbs(); log('removed ref '+i); }
+function clearImages(){ refs=[]; renderThumbs(); clearMask(); log('cleared refs'); }
+
+function loadRefToMask(dataUrl){
+  const img=new Image(); img.onload=()=>{
+    const c=$('maskCanvas'); const ctx=c.getContext('2d');
+    c.width=img.width; c.height=img.height;
+    ctx.drawImage(img,0,0);
+    // overlay semi-transparent for painting
+    maskDirty=false;
+  }; img.src=dataUrl;
+}
+
+// mask painter
+(function(){
+  const c=$('maskCanvas'); const ctx=c.getContext('2d');
+  let drawing=false, erasing=false;
+  function pos(e){
+    const r=c.getBoundingClientRect();
+    const t=e.touches? e.touches[0]: e;
+    return {x:(t.clientX-r.left)/r.width*c.width, y:(t.clientY-r.top)/r.height*c.height};
+  }
+  function dot(x,y){
+    ctx.globalCompositeOperation = erasing ? 'destination-out' : 'source-over';
+    ctx.fillStyle = 'white';
+    ctx.beginPath(); ctx.arc(x,y, Number($('brush').value)/2, 0, Math.PI*2); ctx.fill();
+    maskDirty=true;
+  }
+  c.addEventListener('pointerdown', e=>{ c.setPointerCapture(e.pointerId); drawing=true; erasing=e.button===2 || e.altKey; const p=pos(e); dot(p.x,p.y); });
+  c.addEventListener('pointermove', e=>{ if(!drawing) return; const p=pos(e); dot(p.x,p.y); });
+  window.addEventListener('pointerup', ()=> drawing=false);
+  c.addEventListener('contextmenu', e=> e.preventDefault());
+})();
+function clearMask(){ const c=$('maskCanvas'), ctx=c.getContext('2d'); ctx.clearRect(0,0,c.width,c.height); if(refs[0]) loadRefToMask(refs[0].dataUrl); else { ctx.fillStyle='#111'; ctx.fillRect(0,0,c.width,c.height);} maskDirty=false; }
+function invertMask(){
+  const c=$('maskCanvas'), ctx=c.getContext('2d');
+  const d=ctx.getImageData(0,0,c.width,c.height);
+  for(let i=0;i<d.data.length;i+=4){ d.data[i]=255-d.data[i]; d.data[i+1]=255-d.data[i+1]; d.data[i+2]=255-d.data[i+2]; }
+  ctx.putImageData(d,0,0); maskDirty=true;
+}
+function getMaskImage(){
+  const c=$('maskCanvas');
+  if (!maskDirty && refs.find(r=>r.name==='mask.png')) return null; // use uploaded mask
+  // if never painted, no mask
+  if (!maskDirty) return null;
+  // export as png base64 (L)
+  return c.toDataURL('image/png');
+}
+
+// LoRAs
+function addLora(name='', w=0.8){ const wrap=$('loras'); const row=document.createElement('div'); row.className='lora';
+  row.innerHTML=`<input type="text" placeholder="lora name without .safetensors, e.g. detail_tweaker" value="${name}"/><input type="number" step="0.05" min="-2" max="2" value="${w}"/><button class="btn small ghost" onclick="this.parentElement.remove()">✕</button>`;
+  wrap.appendChild(row);
+}
+function clearLoras(){ $('loras').innerHTML=''; }
+function getLoras(){ return [...document.querySelectorAll('#loras .lora')].map(r=>({name:r.children[0].value.trim(), w:parseFloat(r.children[1].value)||0})).filter(x=>x.name); }
+
+function randomSeed(){ $('seed').value = Math.floor(Math.random()*2147483647); }
+function useLastSeed(){ if(lastSeed!=null) $('seed').value=lastSeed; }
+function pastePrompt(){ navigator.clipboard.readText().then(t=> $('prompt').value=t).catch(()=>log('clipboard denied')); }
+
+function syncIPAdapter(){ $('ipOpts').classList.toggle('hidden', !$('useIPAdapter').checked); }
+$('ipWeight')?.addEventListener('input',()=> $('ipWeight_v').textContent=Number($('ipWeight').value).toFixed(2));
+function preset(k){
+  if(k==='anime'){ $('prompt').value='masterpiece, best quality, anime, 1girl, detailed face, soft lighting, intricate background'; $('neg').value='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'; $('steps').value=28; $('cfg').value=6.5; $('sampler').value='euler_ancestral'; $('scheduler').value='normal'; clearLoras(); }
+  if(k==='photo'){ $('prompt').value='masterpiece, best quality, photo, 1girl, realistic skin, natural lighting, bokeh'; $('cfg').value=5; $('sampler').value='dpmpp_2m'; $('scheduler').value='karras'; }
+  if(k==='turbo'){ clearLoras(); addLora('dmd2-speed-lora-sdxl-pony-illustrious',1); $('steps').value=4; $('cfg').value=1.5; $('sampler').value='euler'; $('scheduler').value='sgm_uniform'; log('turbo: DMD2 4-step cfg 1.5 euler/sgm_uniform'); }
+  if(k==='portrait'){ $('width').value=832; $('height').value=1216; $('steps').value=28; }
+  if(k==='landscape'){ $('width').value=1216; $('height').value=832; $('steps').value=28; }
+  ['steps','cfg'].forEach(id=>{ const v=$(id+'_v'); if(v) v.textContent=$(id).value; });
+}
+
+function syncEndpoint(){ epMode=$('epPath').value; $('epMode').textContent=epMode; }
+function setEndpointMode(m){ $('epPath').value=m; syncEndpoint(); }
+
+function copyWorkflow(){ navigator.clipboard.writeText($('customJson').value||JSON.stringify(buildWorkflow(),null,2)); log('workflow copied'); }
+function fillCustom(){ $('customJson').value = JSON.stringify(buildWorkflow(), null, 2); $('useCustom').checked=true; }
+function formatCustom(){ try{ $('customJson').value = JSON.stringify(JSON.parse($('customJson').value), null, 2); }catch(e){ log('format failed: '+e.message); } }
+function toggleCustom(){}
+
+function buildWorkflow(){
+  const W=Number($('width').value), H=Number($('height').value);
+  const steps=Number($('steps').value), cfg=Number($('cfg').value);
+  const sampler=$('sampler').value, scheduler=$('scheduler').value;
+  let seedVal = Number($('seed').value);
+  if (seedVal===-1 || isNaN(seedVal)) seedVal = Math.floor(Math.random()*2147483647);
+  lastSeed = seedVal;
+  $('seedInfo').textContent = 'seed '+seedVal;
+  const denoise = mode==='txt2img' ? 1 : Number($('denoise').value);
+  const loras = getLoras();
+  const useIP = $('useIPAdapter')?.checked && refs.length>0;
+
+  // nodes: 30 checkpoint, 27 latent or 10+11 image, 6 positive, 33 negative, 31 sampler, 8 vae decode, 9 save, 38 preview
+  // IPAdapter adds: 70 CLIPVisionLoad, 71 IPAdapterLoader, 72 IPAdapterApply (if enabled)
+  const wf = {};
+
+  // 30 checkpoint
+  wf["30"] = { inputs:{ ckpt_name:"Illustrious-XL-v2.0.safetensors" }, class_type:"CheckpointLoaderSimple" };
+  let modelNode = "30", clipNode = "30";
+
+  // LoRA chain
+  let curModel = ["30",0], curClip = ["30",1];
+  loras.forEach((l,i)=>{
+    const id = String(100+i);
+    wf[id] = { inputs:{ lora_name: l.name + (l.name.endsWith(".safetensors")?"":".safetensors"), strength_model: l.w, strength_clip: l.w, model: curModel, clip: curClip }, class_type:"LoraLoader" };
+    curModel = [id,0]; curClip = [id,1];
+  });
+  // if loras, model/clip now from last lora
+  if (loras.length) { modelNode = String(100+loras.length-1); }
+
+  // latent source
+  if (mode==='txt2img'){
+    wf["27"] = { inputs:{ width:W, height:H, batch_size: Number($('batch').value)||1 }, class_type:"EmptyLatentImage" };
+  } else {
+    // expect first ref as ref.png
+    const refName = refs[0]?.name || 'ref.png';
+    wf["10"] = { inputs:{ image: refName }, class_type:"LoadImage" };
+    if (mode==='inpaint'){
+      // mask: either painted mask.png or uploaded mask.png
+      // ComfyUI VAEEncode can take mask; if we have mask, wire it
+      const hasMask = !!getMaskImage() || refs.find(r=>r.name==='mask.png');
+      if (hasMask){
+        // need mask image node
+        const maskName = refs.find(r=>r.name==='mask.png') ? 'mask.png' : 'mask.png';
+        if (!refs.find(r=>r.name==='mask.png') && getMaskImage()){
+          // mask will be injected as extra image just before send — LoadImage 12
+          wf["12"] = { inputs:{ image: maskName }, class_type:"LoadImage" };
+          wf["11"] = { inputs:{ pixels: ["10",0], vae: curModel[0]=== "30" ? ["30",2] : [curModel[0],0] ? ["30",2] : ["30",2], mask: ["12",0] }, class_type:"VAEEncode" };
+          // fix vae reference properly:
+          wf["11"].inputs.vae = loras.length ? [String(100+loras.length-1), 0, "MODEL?"] : ["30",2];
+          // actually VAE is still from checkpoint: node 30 output 2 is VAE, lora doesn't change VAE
+          wf["11"].inputs.vae = ["30",2];
+        } else {
+          wf["12"] = { inputs:{ image:"mask.png" }, class_type:"LoadImage" };
+          wf["11"] = { inputs:{ pixels:["10",0], vae:["30",2], mask:["12",0] }, class_type:"VAEEncode" };
+        }
+      } else {
+        wf["11"] = { inputs:{ pixels:["10",0], vae:["30",2] }, class_type:"VAEEncode" };
+      }
+    } else {
+      wf["11"] = { inputs:{ pixels:["10",0], vae:["30",2] }, class_type:"VAEEncode" };
+    }
+  }
+
+  // prompts — hook clip from last lora if present
+  let clipRef = loras.length ? [String(100+loras.length-1),1] : ["30",1];
+  let modelRef = loras.length ? [String(100+loras.length-1),0] : ["30",0];
+  // IPAdapter: inject before prompt so conditioning carries it
+  if (useIP){
+    const ipName = $('ipAdapter')?.value || 'ip-adapter_sdxl.safetensors';
+    const ipW = parseFloat($('ipWeight')?.value)||0.7;
+    // Use first ref as IPAdapter image (separate from img2img ref — if img2img, reuse same file via duplicate LoadImage)
+    const ipImgNode = "70";
+    const ipClipVisNode = "71";
+    const ipLoadNode = "72";
+    const ipApplyNode = "73";
+    wf[ipImgNode] = { inputs:{ image: refs[0].name }, class_type:"LoadImage" };
+    wf[ipClipVisNode] = { inputs:{ clip_name: "model.safetensors" }, class_type:"CLIPVisionLoader" };
+    wf[ipLoadNode] = { inputs:{ ipadapter_file: ipName }, class_type:"IPAdapterLoader" };
+    // IPAdapterApply takes model + image + clip_vision_embeds; apply weight to positive/negative later
+    wf[ipApplyNode] = { inputs:{ model: modelRef, ipadapter: [ipLoadNode,0], image: [ipImgNode,0], clip_vision: [ipClipVisNode,0], weight: ipW, weight_type:"original" }, class_type:"IPAdapterApply" };
+    modelRef = [ipApplyNode,0];
+  }
+  wf["6"] = { inputs:{ text: $('prompt').value, clip: clipRef }, class_type:"CLIPTextEncode" };
+  wf["33"] = { inputs:{ text: $('neg').value, clip: clipRef }, class_type:"CLIPTextEncode" };
+
+  // sampler
+  const latentIn = mode==='txt2img' ? ["27",0] : ["11",0];
+  const modelIn = modelRef;
+  // IPAdapter weight on conditioning: if IPAdapter active, wrap positives via IPAdapter noise, else plain
+  let posRef = ["6",0], negRef = ["33",0];
+  wf["31"] = { inputs:{ seed: seedVal, steps, cfg, sampler_name: sampler, scheduler, denoise, model: modelIn, positive: posRef, negative: negRef, latent_image: latentIn }, class_type:"KSampler" };
+
+  // hires fix
+  if ($('hiResFix').checked){
+    const scale = Number($('hiresScale').value)||1.5;
+    const hSteps = Number($('hiresSteps').value)||12;
+    const hDenoise = Number($('hiresDenoise').value)||0.35;
+    wf["32"] = { inputs:{ samples:["31",0], upscale_method:"bislerp", width: Math.round(W*scale/64)*64, height: Math.round(H*scale/64)*64, crop:"center" }, class_type:"LatentUpscale" };
+    wf["34"] = { inputs:{ seed: seedVal+1, steps:hSteps, cfg, sampler_name:sampler, scheduler, denoise:hDenoise, model:modelIn, positive:["6",0], negative:["33",0], latent_image:["32",0] }, class_type:"KSampler" };
+    wf["8"] = { inputs:{ samples:["34",0], vae:["30",2] }, class_type:"VAEDecode" };
+  } else {
+    wf["8"] = { inputs:{ samples:["31",0], vae:["30",2] }, class_type:"VAEDecode" };
+  }
+  wf["9"] = { inputs:{ filename_prefix:"ComfyUI", images:["8",0] }, class_type:"SaveImage" };
+  if ($('returnPreview').checked) wf["38"] = { inputs:{ images:["8",0] }, class_type:"PreviewImage" };
+
+  // Ensure mask wiring is clean for non-inpaint
+  // (VAEEncode mask handling above is robust, but for txt2img/img2img without mask, node 11 shouldn't have mask)
+  if (mode!=='inpaint' && wf["11"] && wf["11"].inputs.mask) delete wf["11"].inputs.mask;
+
+  // store for custom
+  if (!$('useCustom').checked) $('customJson').value = JSON.stringify(wf,null,2);
+  return wf;
+}
+
+function buildImagesPayload(){
+  const out=[];
+  refs.forEach(r=> out.push({name:r.name, image: r.dataUrl.startsWith('data:')? r.dataUrl : 'data:image/png;base64,'+r.base64}));
+  // inject painted mask if needed and not already present
+  const maskDataUrl = getMaskImage();
+  if (maskDataUrl && !out.find(x=>x.name==='mask.png')){
+    out.push({name:'mask.png', image: maskDataUrl});
+  }
+  return out;
+}
+
+async function generate(){
+  const endpoint = $('endpoint').value.trim().replace(/\/$/,'');
+  const key = $('apikey').value.trim();
+  if(!endpoint || !key){ alert('Set endpoint URL and API key in the top bar'); return; }
+  const btn=$('go'); btn.disabled=true; const t0=performance.now();
+  setStatus('running…');
+  const timer = setInterval(()=>{ const s=((performance.now()-t0)/1000).toFixed(1); $('timer').textContent=s+'s'; }, 200);
+  try{
+    let workflow;
+    if ($('useCustom').checked){
+      try{ workflow = JSON.parse($('customJson').value); } catch(e){ throw new Error('Custom workflow JSON invalid: '+e.message); }
+    } else {
+      workflow = buildWorkflow();
+    }
+    const images = buildImagesPayload();
+    // drop empty images key if no refs to keep payload small
+    const payload = { input: { workflow, ...(images.length? {images}: {}) } };
+    log('POST '+endpoint + '  workflow nodes='+Object.keys(workflow).length + ' images='+images.length);
+    if (mode!=='txt2img' && images.length===0) log('WARN: img2img/inpaint with no reference image — will error on ComfyUI LoadImage');
+
+    const url = endpoint; // already includes /runsync or /run
+    const isSync = url.endsWith('/runsync') || $('epPath').value==='runsync';
+    let res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key}, body: JSON.stringify(payload) });
+    if (!res.ok){ const txt=await res.text(); throw new Error('HTTP '+res.status+': '+txt.slice(0,800)); }
+    let data = await res.json();
+    // if /run (async), poll /status
+    if (!isSync && data.id){
+      const base = url.replace(/\/run\/?$/,'');
+      const jobId = data.id;
+      log('async job '+jobId+' polling /status…');
+      for(let i=0;i<120;i++){
+        await new Promise(r=>setTimeout(r,1500));
+        const sRes = await fetch(`${base}/status/${jobId}`, { headers:{'Authorization':'Bearer '+key}});
+        if(!sRes.ok){ const t=await sRes.text(); throw new Error('status '+sRes.status+': '+t.slice(0,500)); }
+        const sData = await sRes.json();
+        const st = sData.status || sData.state;
+        if (st==='COMPLETED' || st==='COMPLETED ' || sData.output){ data=sData; break; }
+        if (st==='FAILED' || st==='ERROR'){ throw new Error('job failed: '+JSON.stringify(sData).slice(0,1200)); }
+        log('status: '+(st||JSON.stringify(sData).slice(0,120)));
+      }
+    }
+    const out = data.output || data;
+    const elapsed = ((performance.now()-t0)/1000).toFixed(1);
+    $('timer').textContent = elapsed+'s';
+    if (out.error){ setStatus('error', false); log('ERROR: '+JSON.stringify(out,null,2)); alert('Error: '+(out.error||JSON.stringify(out).slice(0,600))); return; }
+    const imgs = out.images || [];
+    if (!imgs.length){ setStatus('no images', false); log('No images in output: '+JSON.stringify(data).slice(0,1200)); return; }
+    setStatus('done '+imgs.length+' image(s)', true);
+    log('got '+imgs.length+' image(s) in '+elapsed+'s');
+
+    // preview first image large
+    const first = imgs[0];
+    const src = first.type==='s3_url' ? first.data : 'data:image/png;base64,'+first.data;
+    const preview=$('preview');
+    preview.innerHTML = `<img src="${src}" style="max-width:100%;max-height:560px;object-fit:contain;display:block"/><div style="position:absolute;inset:auto 12px 12px auto;display:flex;gap:6px"><button class="btn small" onclick="window.open('${src}','_blank')">open</button><a class="btn small" download="${first.filename||'image.png'}" href="${src}">download</a></div>`;
+    preview.style.position='relative';
+
+    // gallery
+    const gal=$('gallery');
+    imgs.forEach((im,i)=>{
+      const s = im.type==='s3_url' ? im.data : 'data:image/png;base64,'+im.data;
+      const tile=document.createElement('div'); tile.className='tile';
+      tile.innerHTML=`<img src="${s}"/><div class="meta">${im.filename||'image '+(i+1)} · ${im.type}<br/><a href="${s}" download="${im.filename||'image.png'}" style="color:var(--accent2)">download</a> · <a href="#" onclick="copyB64(this, '${s.slice(0,32)}');return false">copy</a></div>`;
+      tile.querySelector('img').onclick=()=>{ $('preview').innerHTML=`<img src="${s}" style="max-width:100%;max-height:560px;object-fit:contain"/>`; };
+      tile._src=s;
+      gal.prepend(tile);
+    });
+    // stash last result for export
+    window._lastImages = imgs;
+  } catch(e){
+    setStatus('error', false);
+    log('throw: '+e.message+'\n'+(e.stack||'').slice(0,600));
+    alert(e.message);
+  } finally {
+    clearInterval(timer);
+    btn.disabled=false;
+  }
+}
+function copyB64(a, prefix){ const tile=a.closest('.tile'); const s=tile._src; navigator.clipboard.writeText(s).then(()=>log('copied base64')).catch(()=>{}); }
+
+function clearGallery(){ $('gallery').innerHTML=''; $('preview').innerHTML='<div class="small" style="padding:24px;text-align:center">Cleared.</div>'; }
+function exportGallery(){ /* simple: open each */ [...document.querySelectorAll('#gallery .tile')].forEach(t=> window.open(t._src,'_blank')); }
+function downloadPayload(){
+  const wf = $('useCustom').checked ? JSON.parse($('customJson').value||'{}') : buildWorkflow();
+  const payload = { input:{ workflow: wf, ...(buildImagesPayload().length? {images: buildImagesPayload().map(x=>({name:x.name, image:x.image.slice(0,40)+'...'}))}: {}) } };
+  const blob=new Blob([JSON.stringify({input:{workflow:wf}},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='payload.json'; a.click();
+}
+function copyShareLink(){
+  const p=encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({p:$('prompt').value, n:$('neg').value, w:$('width').value, h:$('height').value, s:$('steps').value, c:$('cfg').value})))));
+  const url=location.href.split('?')[0]+'?q='+p;
+  navigator.clipboard.writeText(url).then(()=>log('share link copied')).catch(()=> prompt('Copy', url));
+}
+(function loadShare(){
+  const q=new URLSearchParams(location.search).get('q');
+  if(!q) return;
+  try{ const o=JSON.parse(decodeURIComponent(escape(atob(q)))); if(o.p) $('prompt').value=o.p; if(o.n) $('neg').value=o.n; if(o.w) $('width').value=o.w; if(o.h) $('height').value=o.h; if(o.s) $('steps').value=o.s; if(o.c) $('cfg').value=o.c; }catch{}
+})();
+
+// wire initial
+setMode('txt2img');
+$('steps').dispatchEvent(new Event('input')); $('cfg').dispatchEvent(new Event('input'));
+$('hiresDenoise').addEventListener('input',()=> $('hiresDenoise_v').textContent=$('hiresDenoise').value);
+buildWorkflow();
+log('ready — set endpoint + key, pick mode, generate. FAST: checkpoint + DMD2 + IPAdapter on /runpod-volume (Pod also /workspace). Turbo preset = 4-step DMD2 ~1.5s.');
+</script>
+</body>
+</html>

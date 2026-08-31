@@ -7,6 +7,12 @@ runpod_worker_comfy:
   controlnet: models/controlnet/
   embeddings: models/embeddings/
   loras: models/loras/
+  ipadapter: models/ipadapter/
+  pulid: models/pulid/
   upscale_models: models/upscale_models/
   vae: models/vae/
   unet: models/unet/
+  text_encoders: models/text_encoders/
+  diffusion_models: models/diffusion_models/
+  # IPAdapter-Plus stores CLIPVision encoder under clip_vision
+  clip_vision_ipadapter: models/clip_vision/

@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     python3.12-venv \
     git \
     wget \
+    curl \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
@@ -48,8 +49,6 @@ RUN wget -qO- https://astral.sh/uv/install.sh | sh \
 ENV PATH="/opt/venv/bin:${PATH}"
 
 # Install comfy-cli + dependencies needed by it to install ComfyUI
-# comfy-cli is pinned: its install/torch-index behavior decides what lands in
-# the workspace venv, so an unpinned version makes builds non-reproducible.
 RUN uv pip install comfy-cli==1.13.0 pip setuptools wheel
 
 # Install ComfyUI
@@ -59,33 +58,11 @@ RUN if [ -n "${CUDA_VERSION_FOR_COMFY}" ]; then \
       /usr/bin/yes | comfy --workspace /comfyui install --version "${COMFYUI_VERSION}" --nvidia; \
     fi
 
-# Upgrade PyTorch if needed (for newer CUDA versions)
+# Upgrade PyTorch if needed
 RUN if [ "$ENABLE_PYTORCH_UPGRADE" = "true" ]; then \
       uv pip install --force-reinstall torch torchvision torchaudio --index-url ${PYTORCH_INDEX_URL}; \
     fi
 
-# comfy-cli installs ComfyUI into its own workspace venv (/comfyui/.venv), but
-# start.sh launches ComfyUI with /opt/venv's python. That mismatch leaves the
-# launch venv missing ComfyUI's runtime deps (e.g. sqlalchemy, pulled in by
-# ComfyUI's asset DB), so ComfyUI crashes at startup and surfaces as the
-# misleading "ComfyUI server (127.0.0.1:8188) not reachable" error. Mirror
-# ComfyUI's full dependency set (core + custom nodes) into /opt/venv so the
-# launch venv is complete. Root-cause fix for DR-1170.
-#
-# The transformers/huggingface-hub pin is part of the SAME step on purpose:
-# ComfyUI declares transformers>=4.50.3 and huggingface-hub with NO upper bound,
-# so a fresh install can pull transformers 5.x / huggingface-hub 1.x whose
-# breaking API changes also crash ComfyUI at startup. Pinning them in the same
-# RUN downgrades within one layer, so the unwanted versions aren't left behind
-# bloating the image.
-#
-# torch is installed FIRST, pinned to +cu128 builds: ComfyUI's requirements.txt
-# declares a bare `torch`, and default PyPI serves CUDA 13 builds (torch's PyPI
-# wheels depend on nvidia-*-cu13 since 2.11) that require driver >= 580. Hosts
-# allowed in .runpod/hub.json advertise CUDA 12.8/12.9 (driver 570/575), where
-# a cu13 torch fails CUDA init at startup. cu128 builds run on driver >= 570,
-# i.e. every allowed host. Installing torch first satisfies the bare `torch`
-# requirement so the PyPI pass doesn't touch it.
 RUN uv pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
       --index-url https://download.pytorch.org/whl/cu128 \
     && uv pip install -r /comfyui/requirements.txt \
@@ -94,17 +71,30 @@ RUN uv pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
        done \
     && uv pip install "transformers>=4.50.3,<5" "huggingface-hub<1.0"
 
-# Build-time smoke test: actually start ComfyUI (imports the full node graph) so
-# a startup-breaking dependency is caught HERE, at build time, instead of as a
-# runtime "server not reachable" failure on a live worker. Runs on CPU — no GPU
-# needed to exercise the import graph.
+# ── IPAdapter Plus (image reference) ──
+# Needed for IPAdapterApply / LoadIPAdapter workflows (character/style ref).
+# Lightweight; no model download here — models come from /runpod-volume.
+RUN uv pip install insightface onnxruntime onnx 2>&1 | tail -5 || true
+RUN comfy-node-install ComfyUI-IPAdapter-Plus 2>&1 | tail -20 || \
+    (git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus /comfyui/custom_nodes/ComfyUI_IPAdapter_plus && \
+     uv pip install -r /comfyui/custom_nodes/ComfyUI_IPAdapter_plus/requirements.txt 2>&1 | tail -10 || true)
+
+# Re-apply deps after custom node install (node may have pulled conflicting torch/transformers)
+RUN uv pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
+      --index-url https://download.pytorch.org/whl/cu128 2>&1 | tail -5 || true \
+    && uv pip install "transformers>=4.50.3,<5" "huggingface-hub<1.0" 2>&1 | tail -5 || true
+
+# Build-time smoke test
 RUN cd /comfyui && timeout 300 python main.py --quick-test-for-ci --cpu
 
 # Change working directory to ComfyUI
 WORKDIR /comfyui
 
-# Support for the network volume
+# Support for the network volume — copied BEFORE smoke test? No, after smoke test is fine but
+# validate that the yaml loads (including ipadapter/clip_vision keys).
 ADD src/extra_model_paths.yaml ./
+RUN python -c "import yaml, pathlib; p=pathlib.Path('extra_model_paths.yaml'); cfg=yaml.safe_load(p.read_text()); assert 'runpod_worker_comfy' in cfg, cfg; assert 'ipadapter' in cfg['runpod_worker_comfy'], 'ipadapter missing'; assert 'checkpoints' in cfg['runpod_worker_comfy']; print('extra_model_paths.yaml OK:', list(cfg['runpod_worker_comfy'].keys()))" \
+ && python -c "import folder_paths, utils.extra_config; utils.extra_config.load_extra_path_config('extra_model_paths.yaml'); print('extra paths loaded, keys:', [k for k in folder_paths.folder_names_and_paths if any(x in k for x in ('ipadapter','clip_vision','checkpoints','loras'))])"
 
 # Go back to the root
 WORKDIR /
@@ -134,16 +124,12 @@ CMD ["/start.sh"]
 FROM base AS downloader
 
 ARG HUGGINGFACE_ACCESS_TOKEN
-# Set default model type if none is provided — illustrious is the primary target for this fork
 ARG MODEL_TYPE=illustrious
 
-# Change working directory to ComfyUI
 WORKDIR /comfyui
 
-# Create necessary directories upfront
-RUN mkdir -p models/checkpoints models/vae models/unet models/clip models/text_encoders models/diffusion_models models/model_patches
+RUN mkdir -p models/checkpoints models/vae models/unet models/clip models/text_encoders models/diffusion_models models/model_patches models/loras models/ipadapter models/clip_vision
 
-# Download checkpoints/vae/unet/clip models to include in image based on model type
 RUN if [ "$MODEL_TYPE" = "sdxl" ]; then \
       wget -q -O models/checkpoints/sd_xl_base_1.0.safetensors https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors && \
       wget -q -O models/vae/sdxl_vae.safetensors https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors && \
@@ -179,12 +165,33 @@ RUN if [ "$MODEL_TYPE" = "z-image-turbo" ]; then \
       wget -q --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/model_patches/Z-Image-Turbo-Fun-Controlnet-Union.safetensors https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union/resolve/main/Z-Image-Turbo-Fun-Controlnet-Union.safetensors; \
     fi
 
-RUN if [ "$MODEL_TYPE" = "illustrious" ]; then \
-      wget -q -O models/checkpoints/Illustrious-XL-v2.0.safetensors https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0/resolve/main/Illustrious-XL-v2.0.safetensors; \
+# ── illustrious on network volume ──
+# When USE_NETWORK_VOLUME=true (default for illustrious), skip bake — models come from /runpod-volume.
+ARG USE_NETWORK_VOLUME=true
+RUN if [ "$MODEL_TYPE" = "illustrious" ] && [ "$USE_NETWORK_VOLUME" = "true" ]; then \
+      echo "FAST: skipping Illustrious bake (USE_NETWORK_VOLUME=true) — checkpoint/Loras live on /runpod-volume"; \
+      ls -R models 2>&1 | head -30 || true; \
+    elif [ "$MODEL_TYPE" = "illustrious" ]; then \
+      wget -q -O models/checkpoints/Illustrious-XL-v2.0.safetensors https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0/resolve/main/Illustrious-XL-v2.0.safetensors && \
+      echo "baked Illustrious" && ls -lh models/checkpoints/; \
+    fi
+
+# Optional baked turbo LoRA (still tiny; baked even in FAST so /loras is non-empty)
+RUN if [ "$MODEL_TYPE" = "illustrious" ] && [ "$USE_NETWORK_VOLUME" != "true" ]; then \
+      echo "baking DMD2 LoRA for non-volume image" && \
+      wget -q -O models/loras/dmd2-speed-lora-sdxl-pony-illustrious.safetensors https://huggingface.co/Muapi/dmd2-speed-lora-sdxl-pony-illustrious/resolve/main/dmd2-speed-lora-sdxl-pony-illustrious.safetensors 2>&1 | tail -5 || echo "DMD2 fetch failed — non-fatal"; \
     fi
 
 # Stage 3: Final image
 FROM base AS final
 
-# Copy models from stage 2 to the final image
-COPY --from=downloader /comfyui/models /comfyui/models
+ARG USE_NETWORK_VOLUME=true
+# Only copy models when NOT in network volume mode (FAST: skip to keep image ~7 GB)
+COPY --from=downloader /comfyui/models /tmp/downloader_models
+RUN if [ "$USE_NETWORK_VOLUME" = "true" ]; then \
+      echo "FAST: not copying baked models into final (volume-native) — final has ~empty /comfyui/models"; \
+      mkdir -p /comfyui/models; \
+    else \
+      echo "BAKED: copying models into final"; \
+      cp -a /tmp/downloader_models/* /comfyui/models/ 2>&1 | tail -20; \
+    fi && rm -rf /tmp/downloader_models && ls -lh /comfyui/models 2>&1 | head -20; du -sh /comfyui/models 2>&1 | head -10
