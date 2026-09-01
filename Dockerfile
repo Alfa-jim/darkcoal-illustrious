@@ -72,20 +72,24 @@ RUN uv pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
     && uv pip install "transformers>=4.50.3,<5" "huggingface-hub<1.0"
 
 # ── IPAdapter Plus (image reference) ──
-# Needed for IPAdapterApply / LoadIPAdapter workflows (character/style ref).
+# Needed for IPAdapterLoader / Apply IPAdapter… workflows (character/style ref).
 # Lightweight; no model download here — models come from /runpod-volume.
+# comfy-node-install names it ComfyUI_IPAdapter_plus, not ComfyUI-IPAdapter-Plus.
 RUN uv pip install insightface onnxruntime onnx 2>&1 | tail -5 || true
-RUN comfy-node-install ComfyUI-IPAdapter-Plus 2>&1 | tail -20 || \
-    (git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus /comfyui/custom_nodes/ComfyUI_IPAdapter_plus && \
-     uv pip install -r /comfyui/custom_nodes/ComfyUI_IPAdapter_plus/requirements.txt 2>&1 | tail -10 || true)
+RUN if ! comfy-node-install ComfyUI_IPAdapter_plus 2>&1 | tail -20; then \
+      echo "comfy-node-install fallback: git clone"; \
+      git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus /comfyui/custom_nodes/ComfyUI_IPAdapter_plus && \
+      uv pip install -r /comfyui/custom_nodes/ComfyUI_IPAdapter_plus/requirements.txt 2>&1 | tail -10 || true; \
+    fi && ls -l /comfyui/custom_nodes/ | grep -i ipadapter || true
 
 # Re-apply deps after custom node install (node may have pulled conflicting torch/transformers)
 RUN uv pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
       --index-url https://download.pytorch.org/whl/cu128 2>&1 | tail -5 || true \
     && uv pip install "transformers>=4.50.3,<5" "huggingface-hub<1.0" 2>&1 | tail -5 || true
 
-# Build-time smoke test
-RUN cd /comfyui && timeout 300 python main.py --quick-test-for-ci --cpu
+# Build-time smoke test (must include IPAdapter nodes)
+RUN cd /comfyui && timeout 300 python main.py --quick-test-for-ci --cpu 2>&1 | tee /tmp/smoke.log; \
+    grep -q "IPAdapter" /tmp/smoke.log 2>/dev/null && echo "smoke: IPAdapter present" || (echo "smoke: IPAdapter NOT in smoke log — check custom_nodes" && ls -l /comfyui/custom_nodes/ | grep -i ip; cat /tmp/smoke.log | tail -100; exit 1)
 
 # Change working directory to ComfyUI
 WORKDIR /comfyui

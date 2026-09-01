@@ -22,7 +22,8 @@ label:first-child{margin-top:0}
 input[type=text],input[type=number],textarea,select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:9px 10px;font-size:13px;outline:none}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 textarea{resize:vertical;min-height:72px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-width:0}
+.row > *{min-width:0}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--border)}
 .btn{appearance:none;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
@@ -31,9 +32,9 @@ textarea{resize:vertical;min-height:72px}
 .btn.primary:disabled{opacity:.6;cursor:not-allowed}
 .btn.ghost{background:transparent}
 .btn.small{padding:7px 10px;font-size:12px;border-radius:10px}
-.range{display:flex;gap:10px;align-items:center}
-.range input[type=range]{flex:1}
-.range b{font-size:12px;color:var(--muted);min-width:44px;text-align:right}
+.range{display:flex;gap:8px;align-items:center;min-width:0}
+.range input[type=range]{flex:1 1 auto;min-width:0}
+.range b{font-size:12px;color:var(--muted);min-width:36px;flex:0 0 auto;text-align:right;white-space:nowrap}
 .drop{border:1px dashed var(--border);border-radius:14px;padding:14px;text-align:center;background:var(--panel2);cursor:pointer}
 .drop.drag{border-color:var(--accent);background:rgba(139,92,246,.08)}
 .thumb{width:100%;max-height:240px;object-fit:contain;border-radius:10px;background:#0b0b10;border:1px solid var(--border)}
@@ -101,7 +102,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     <h2>Sampler</h2>
     <div class="row">
       <div><label>Steps</label><div class="range"><input id="steps" type="range" min="4" max="60" value="28"/><b id="steps_v">28</b></div></div>
-      <div><label>CFG</label><div class="range"><input id="cfg" type="range" min="1" max="12" step="0.5" value="6.5"/><b id="cfg_v">6.5</b></div></div>
+      <div><label>CFG</label><div class="range"><input id="cfg" type="range" min="1" max="12" step="0.1" value="6.5"/><b id="cfg_v">6.5</b></div></div>
     </div>
     <div class="row">
       <div><label>Sampler</label>
@@ -141,7 +142,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
 
     <h2>Image reference (IPAdapter)</h2>
     <div class="small">Drop a face/style ref — wired as <code>LoadImage(ref) + CLIPVisionEncode + IPAdapterApply</code> (needs <code>ip-adapter_sdxl</code> + <code>clip_vision/model</code> on volume + <code>ComfyUI-IPAdapter-Plus</code> node baked). Leave off for plain txt2img.</div>
-    <label class="switch"><input id="useIPAdapter" type="checkbox" onchange="syncIPAdapter()"/> enable IPAdapter (image reference)</label>
+    <label class="switch"><input id="useIPAdapter" type="checkbox" onchange="syncIPAdapter()"/> enable IPAdapter (image reference) <span class="small" style="color:var(--warn)">needs rebuild</span></label>
     <div id="ipOpts" class="hidden">
       <label>Weight</label><div class="range"><input id="ipWeight" type="range" min="0" max="1.5" step="0.05" value="0.7"/><b id="ipWeight_v">0.70</b></div>
       <label>IPAdapter model</label><select id="ipAdapter"><option>ip-adapter_sdxl.safetensors</option><option>ip-adapter-plus_sdxl_vit-h.safetensors</option><option>ip-adapter-faceid-plusv2_sdxl.bin</option></select>
@@ -210,6 +211,12 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     <h2>Presets</h2>
     <div class="row"><button class="btn small ghost" onclick="preset('anime')">anime</button><button class="btn small ghost" onclick="preset('photo')">photo-ish</button><button class="btn small ghost" onclick="preset('turbo')">⚡ turbo 4-step</button></div>
     <div class="row" style="margin-top:6px"><button class="btn small ghost" onclick="preset('portrait')">portrait</button><button class="btn small ghost" onclick="preset('landscape')">landscape</button></div>
+
+    <h2>My Presets <span class="small" style="text-transform:none;letter-spacing:0">local only</span></h2>
+    <div class="row"><button class="btn small" onclick="savePreset()">+ save current</button><button class="btn small ghost" onclick="exportPresets()">export</button><button class="btn small ghost" onclick="importPresets()">import</button></div>
+    <div id="myPresets" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"></div>
+    <div class="small" style="margin-top:6px">Saves prompt + neg + steps/cfg/sampler/scheduler + W/H + LoRAs + IPAdapter. Cover = last generated image (or pick from gallery). Stored in <code>localStorage</code>.</div>
+    <input id="presetImportFile" type="file" accept=".json" class="hidden" onchange="onPresetImportFile(this)"/>
 
     <h2>Endpoint</h2>
     <div class="kv">
@@ -383,6 +390,134 @@ function preset(k){
 function syncEndpoint(){ epMode=$('epPath').value; $('epMode').textContent=epMode; }
 function setEndpointMode(m){ $('epPath').value=m; syncEndpoint(); }
 
+// ── My Presets (local only, cover pic) ──
+const PRESET_KEY='illustrious.myPresets';
+function getMyPresets(){ try{ return JSON.parse(localStorage.getItem(PRESET_KEY)||'[]'); }catch{ return []; } }
+function setMyPresets(a){ localStorage.setItem(PRESET_KEY, JSON.stringify(a)); }
+function captureSettings(){
+  return {
+    mode, prompt:$('prompt').value, neg:$('neg').value,
+    steps:$('steps').value, cfg:$('cfg').value, sampler:$('sampler').value, scheduler:$('scheduler').value,
+    denoise:$('denoise')?.value||'0.65', width:$('width').value, height:$('height').value, batch:$('batch').value,
+    seed:$('seed').value, loras:getLoras(), useIP:$('useIPAdapter')?.checked||false, ipWeight:$('ipWeight')?.value||'0.7', ipAdapter:$('ipAdapter')?.value||'ip-adapter_sdxl.safetensors',
+    hiResFix:$('hiResFix')?.checked||false, hiresScale:$('hiresScale')?.value||'1.5', hiresSteps:$('hiresSteps')?.value||'12', hiresDenoise:$('hiresDenoise')?.value||'0.35'
+  };
+}
+function applySettings(s){
+  if(s.mode) setMode(s.mode);
+  if(s.prompt!==undefined) $('prompt').value=s.prompt;
+  if(s.neg!==undefined) $('neg').value=s.neg;
+  if(s.steps!==undefined) $('steps').value=s.steps;
+  if(s.cfg!==undefined) $('cfg').value=s.cfg;
+  if(s.sampler) $('sampler').value=s.sampler;
+  if(s.scheduler) $('scheduler').value=s.scheduler;
+  if(s.denoise!==undefined && $('denoise')) $('denoise').value=s.denoise;
+  if(s.width) $('width').value=s.width;
+  if(s.height) $('height').value=s.height;
+  if(s.batch) $('batch').value=s.batch;
+  if(s.seed!==undefined) $('seed').value=s.seed;
+  if(s.loras){ clearLoras(); s.loras.forEach(l=>addLora(l.name,l.w)); }
+  if($('useIPAdapter')){ $('useIPAdapter').checked=!!s.useIP; syncIPAdapter(); }
+  if(s.ipWeight && $('ipWeight')) $('ipWeight').value=s.ipWeight;
+  if(s.ipAdapter && $('ipAdapter')) $('ipAdapter').value=s.ipAdapter;
+  if($('hiResFix')){ $('hiResFix').checked=!!s.hiResFix; $('hiresOpts')?.classList.toggle('hidden', !$('hiResFix').checked); }
+  if(s.hiresScale && $('hiresScale')) $('hiresScale').value=s.hiresScale;
+  if(s.hiresSteps && $('hiresSteps')) $('hiresSteps').value=s.hiresSteps;
+  if(s.hiresDenoise && $('hiresDenoise')) $('hiresDenoise').value=s.hiresDenoise;
+  ['steps','cfg','denoise','hiresDenoise','ipWeight'].forEach(id=>{ const v=$(id+'_v'); const el=$(id); if(v&&el) v.textContent = id==='ipWeight'||id==='hiresDenoise' ? Number(el.value).toFixed(2) : el.value; });
+  buildWorkflow();
+  log('loaded preset: '+(s.name||'(unnamed)'));
+}
+function savePreset(){
+  const name=prompt('Preset name:', $('prompt').value.slice(0,48) || 'preset '+new Date().toLocaleString());
+  if(!name) return;
+  const s=captureSettings(); s.name=name; s.createdAt=new Date().toISOString();
+  // cover = last generated image (first in gallery) else current preview
+  let cover=null;
+  if(window._lastImages && window._lastImages[0]){
+    const im=window._lastImages[0];
+    cover = im.type==='s3_url' ? im.data : 'data:image/png;base64,'+im.data;
+  } else {
+    const prev=$('preview')?.querySelector('img'); if(prev) cover=prev.src;
+  }
+  if(cover){
+    // downscale cover to ~320px thumb to fit localStorage (~5MB limit per origin)
+    const img=new Image(); img.onload=()=>{
+      const max=320; let w=img.naturalWidth,h=img.naturalHeight; const r=Math.min(1,max/Math.max(w,h)); w=Math.round(w*r); h=Math.round(h*r);
+      const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+      s.cover=c.toDataURL('image/jpeg',0.75);
+      finishSavePreset(s);
+    }; img.onerror=()=>{ s.cover=cover.slice(0,200000); finishSavePreset(s); }; img.src=cover;
+  } else { finishSavePreset(s); }
+}
+function finishSavePreset(s){
+  const a=getMyPresets(); a.unshift(s);
+  // prune oldest if localStorage would overflow (catch QuotaExceededError)
+  try{ setMyPresets(a); }catch(e){
+    // drop covers from oldest until it fits
+    for(let i=a.length-1;i>=0;i--){ if(a[i].cover){ delete a[i].cover; try{ setMyPresets(a); break; }catch{} } }
+    if(e.name==='QuotaExceededError') alert('localStorage full — oldest preset covers were stripped. Export to backup.');
+  }
+  renderMyPresets(); log('saved preset: '+s.name);
+}
+function loadPreset(i){ const a=getMyPresets(); if(a[i]) applySettings(a[i]); }
+function setPresetCover(i){
+  const src=prompt('Paste image data URL or https URL for cover (or leave empty to use current preview):','');
+  let cover=src;
+  if(!cover){ const img=$('preview')?.querySelector('img'); if(img) cover=img.src; }
+  if(!cover){ alert('No cover image found — generate first.'); return; }
+  const a=getMyPresets(); a[i].cover=cover.slice(0,200000); if(cover.startsWith('http')) a[i].cover=cover; setMyPresets(a); renderMyPresets();
+}
+function pickGalleryCover(i){
+  const tiles=[...document.querySelectorAll('#gallery .tile')]; if(!tiles.length){ alert('No gallery images — generate first.'); return; }
+  // use first gallery image as cover
+  const s=tiles[0]._src; const a=getMyPresets(); a[i].cover=s; try{ setMyPresets(a);}catch(e){ alert('Cover too large for localStorage — try a smaller image.'); return; } renderMyPresets();
+}
+function deletePreset(i){ if(!confirm('Delete preset?')) return; const a=getMyPresets(); a.splice(i,1); setMyPresets(a); renderMyPresets(); }
+function duplicatePreset(i){ const a=getMyPresets(); const c=JSON.parse(JSON.stringify(a[i])); c.name=c.name+' copy'; c.createdAt=new Date().toISOString(); a.splice(i+1,0,c); setMyPresets(a); renderMyPresets(); }
+function renderMyPresets(){
+  const wrap=$('myPresets'); if(!wrap) return; const a=getMyPresets(); wrap.innerHTML='';
+  if(!a.length){ wrap.innerHTML='<div class="small" style="grid-column:1/-1;text-align:center;padding:12px;border:1px dashed var(--border);border-radius:12px">No saved presets — hit \u201c+ save current\u201d after you like a generation.</div>'; return; }
+  a.forEach((p,i)=>{
+    const d=document.createElement('div'); d.style.cssText='border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel2);display:flex;flex-direction:column';
+    const cover = p.cover ? `<img src="${p.cover}" style="width:100%;height:140px;object-fit:cover;display:block;background:#0b0b10" loading="lazy"/>` : `<div style="height:140px;display:grid;place-items:center;background:#0b0b10;color:var(--muted);font-size:11px">no cover</div>`;
+    const loras = (p.loras||[]).map(l=>l.name).join(', ')||'no LoRA';
+    d.innerHTML=`
+      ${cover}
+      <div style="padding:8px;flex:1;display:flex;flex-direction:column;gap:6px">
+        <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${(p.name||'').replace(/"/g,'&quot;')}">${p.name||'untitled'}</div>
+        <div class="small" style="line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.steps||'?'} steps · CFG ${p.cfg||'?'} · ${p.sampler||'?'} · ${p.width||'?'}x${p.height||'?'} — ${loras.slice(0,48)}</div>
+        <div class="small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${(p.prompt||'').slice(0,80)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          <button class="btn small primary" style="flex:1" onclick="loadPreset(${i})">load</button>
+          <button class="btn small ghost" onclick="duplicatePreset(${i})" title="duplicate">dup</button>
+          <button class="btn small ghost" onclick="deletePreset(${i})" title="delete">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn small ghost" style="flex:1" onclick="setPresetCover(${i})">set cover</button>
+          <button class="btn small ghost" style="flex:1" onclick="pickGalleryCover(${i})" title="use last gallery image">from gallery</button>
+        </div>
+      </div>`;
+    wrap.appendChild(d);
+  });
+}
+function exportPresets(){
+  const a=getMyPresets(); if(!a.length){ alert('No presets to export.'); return; }
+  const blob=new Blob([JSON.stringify(a,null,2)],{type:'application/json'});
+  const u=URL.createObjectURL(blob); const el=document.createElement('a'); el.href=u; el.download='illustrious-presets.json'; el.click(); setTimeout(()=>URL.revokeObjectURL(u),1000);
+}
+function importPresets(){ $('presetImportFile').click(); }
+function onPresetImportFile(inp){
+  const f=inp.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{
+    try{
+      const arr=JSON.parse(r.result); if(!Array.isArray(arr)) throw new Error('Expected array');
+      const cur=getMyPresets(); const merged=arr.concat(cur);
+      setMyPresets(merged); renderMyPresets(); log('imported '+arr.length+' presets');
+    }catch(e){ alert('Import failed: '+e.message); }
+    inp.value='';
+  }; r.readAsText(f);
+}
+
 function copyWorkflow(){ navigator.clipboard.writeText($('customJson').value||JSON.stringify(buildWorkflow(),null,2)); log('workflow copied'); }
 function fillCustom(){ $('customJson').value = JSON.stringify(buildWorkflow(), null, 2); $('useCustom').checked=true; }
 function formatCustom(){ try{ $('customJson').value = JSON.stringify(JSON.parse($('customJson').value), null, 2); }catch(e){ log('format failed: '+e.message); } }
@@ -456,10 +591,13 @@ function buildWorkflow(){
   let clipRef = loras.length ? [String(100+loras.length-1),1] : ["30",1];
   let modelRef = loras.length ? [String(100+loras.length-1),0] : ["30",0];
   // IPAdapter: inject before prompt so conditioning carries it
-  if (useIP){
+  // NOTE: currently disabled — your deployed FAST image has no IPAdapter node (Node "#72" missing).
+  // Leave toggle off until you rebuild/push Dockerfile fix; otherwise ComfyUI 400s.
+  // Keeping wiring guarded behind both toggle AND a localStorage flag so old workers don't explode.
+  const ipEnabledOnServer = (()=>{ try{ return localStorage.getItem('illustrious.ipadapterServer')==='1'; }catch{ return false; }})();
+  if (useIP && ipEnabledOnServer){
     const ipName = $('ipAdapter')?.value || 'ip-adapter_sdxl.safetensors';
     const ipW = parseFloat($('ipWeight')?.value)||0.7;
-    // Use first ref as IPAdapter image (separate from img2img ref — if img2img, reuse same file via duplicate LoadImage)
     const ipImgNode = "70";
     const ipClipVisNode = "71";
     const ipLoadNode = "72";
@@ -467,9 +605,10 @@ function buildWorkflow(){
     wf[ipImgNode] = { inputs:{ image: refs[0].name }, class_type:"LoadImage" };
     wf[ipClipVisNode] = { inputs:{ clip_name: "model.safetensors" }, class_type:"CLIPVisionLoader" };
     wf[ipLoadNode] = { inputs:{ ipadapter_file: ipName }, class_type:"IPAdapterLoader" };
-    // IPAdapterApply takes model + image + clip_vision_embeds; apply weight to positive/negative later
     wf[ipApplyNode] = { inputs:{ model: modelRef, ipadapter: [ipLoadNode,0], image: [ipImgNode,0], clip_vision: [ipClipVisNode,0], weight: ipW, weight_type:"original" }, class_type:"IPAdapterApply" };
     modelRef = [ipApplyNode,0];
+  } else if(useIP){
+    log('IPAdapter checked but server image lacks the node — ignoring IPAdapter for this run (rebuild needed). Uncheck it or set localStorage illustrious.ipadapterServer=1 after rebuilding.');
   }
   wf["6"] = { inputs:{ text: $('prompt').value, clip: clipRef }, class_type:"CLIPTextEncode" };
   wf["33"] = { inputs:{ text: $('neg').value, clip: clipRef }, class_type:"CLIPTextEncode" };
@@ -618,6 +757,7 @@ function copyShareLink(){
 setMode('txt2img');
 $('steps').dispatchEvent(new Event('input')); $('cfg').dispatchEvent(new Event('input'));
 $('hiresDenoise').addEventListener('input',()=> $('hiresDenoise_v').textContent=$('hiresDenoise').value);
+renderMyPresets();
 buildWorkflow();
 log('ready — set endpoint + key, pick mode, generate. FAST: checkpoint + DMD2 + IPAdapter on /runpod-volume (Pod also /workspace). Turbo preset = 4-step DMD2 ~1.5s.');
 </script>
