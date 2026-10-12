@@ -12,6 +12,45 @@ spec.loader.exec_module(installer)
 
 
 class DownloadTests(unittest.TestCase):
+    def test_login_preflight_happens_before_pro_removal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            response = io.BytesIO(b'')
+            response.status = 200
+            response.headers = {'Content-Type': 'text/html'}
+            response.url = 'https://auth.civitai.com/login'
+            manifest = {'schema_version': 1, 'assets': [{'path': 'checkpoints/weight', 'size': 100,
+                        'sha256': 'a' * 64, 'url': 'https://civitai.com/api/download/models/1'}]}
+            with patch.object(installer, 'urlopen', return_value=response), patch.object(installer, 'remove_pro') as cleanup:
+                with self.assertRaisesRegex(RuntimeError, 'CIVITAI_API_TOKEN'):
+                    installer.prepare(directory, manifest, remove=True, allow_unmounted=True)
+            cleanup.assert_not_called()
+
+    def test_login_html_is_rejected_without_writing_a_partial(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'weight'
+            response = io.BytesIO(b'<html>Login</html>')
+            response.status = 200
+            response.headers = {'Content-Type': 'text/html'}
+            response.url = 'https://auth.civitai.com/login'
+            asset = {'size': 100, 'sha256': 'a' * 64}
+            with patch.object(installer, 'urlopen', return_value=response):
+                with self.assertRaisesRegex(RuntimeError, 'CIVITAI_API_TOKEN'):
+                    installer.download_file('https://civitai.com/api/download/models/1', path, asset)
+            self.assertFalse(path.with_name('weight.part').exists())
+
+    def test_html_partial_is_discarded_before_resuming(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'weight'
+            path.with_name('weight.part').write_bytes(b'<!DOCTYPE html><html>Login</html>')
+            response = io.BytesIO(b'good')
+            response.status = 200
+            response.headers = {}
+            asset = {'size': 4, 'sha256': hashlib.sha256(b'good').hexdigest()}
+            with patch.object(installer, 'urlopen', return_value=response) as get:
+                installer.download_file('https://example.invalid', path, asset)
+            self.assertIsNone(get.call_args.args[0].get_header('Range'))
+            self.assertEqual(path.read_bytes(), b'good')
+
     def test_cleanup_rejects_symlink_component_before_deleting(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -12,13 +12,15 @@ Attach the same network volume to a CPU Pod. Stop Pro workers before deleting th
 curl -fL --retry 3 https://raw.githubusercontent.com/Alfa-jim/darkcoal-illustrious/main/DOWNLOAD_ON_CPU_POD.sh -o /tmp/illustrious-models.sh && MODEL_VOLUME_ROOT=/workspace REMOVE_QWEN_PRO=1 bash /tmp/illustrious-models.sh
 ```
 
-Omit `REMOVE_QWEN_PRO=1` to retain Pro. If Civitai requires authentication, enter a token without shell-history exposure:
+Omit `REMOVE_QWEN_PRO=1` to retain Pro. Civitai requires authentication for the selected checkpoints. Create a key in your Civitai account's API Keys settings, then enter it without shell-history exposure:
 
 ```bash
 read -rsp 'Civitai API token: ' CIVITAI_API_TOKEN; echo; export CIVITAI_API_TOKEN
 ```
 
 Use an immutable commit in place of `main` for a reproducible installer. The standalone bootstrap embeds a pinned manifest and installer with checksum checks. It requires Python 3.11+, refuses an unmounted destination, shows an explicit Pro removal inventory, resumes `.part` files, verifies exact byte sizes and SHA256 before promotion, and prints progress once per second including during stalls and verification. Corrupt existing finalized files are preserved and cause a failure; move them aside before retrying. Completion is recorded as `/workspace/models/illustrious-manifest.json`.
+
+The installer checks download access before any Pro removal, rejects HTML/login responses even when HTTP status is 200, and discards a stale HTML `.part` left by earlier installers before resuming. Set `CIVITAI_API_TOKEN` locally in the Pod; do not share it in chat. Network or authentication failure stops installation without deleting Pro weights during preflight.
 
 ## Storage
 

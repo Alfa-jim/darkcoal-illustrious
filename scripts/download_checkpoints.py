@@ -12,7 +12,7 @@ import shutil
 import time
 import threading
 from urllib.error import URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -29,6 +29,30 @@ def verified(path, asset):
         return False
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest() == asset['sha256']
+
+
+def check_download_response(response):
+    content_type = response.headers.get('Content-Type', '').lower()
+    host = urlparse(getattr(response, 'url', '')).hostname
+    if 'text/html' in content_type or 'application/xhtml+xml' in content_type or host == 'auth.civitai.com':
+        raise RuntimeError('Download returned a login/HTML page, not model weights. '
+                           'Set CIVITAI_API_TOKEN to a valid Civitai API key and rerun. '
+                           'If already set, verify the account has access to this model.')
+
+
+def preflight_downloads(volume_root, assets):
+    for asset in assets:
+        path = checked_path(volume_root, 'models/' + asset['path'])
+        if verified(path, asset):
+            continue
+        print(f'Checking download access: {path.name}', flush=True)
+        try:
+            request = Request(asset_url(asset), method='HEAD', headers={'User-Agent': 'Mozilla/5.0'})
+            with urlopen(request, timeout=30) as response:
+                check_download_response(response)
+        except (URLError, OSError):
+            raise RuntimeError('Download access check failed. Check network and CIVITAI_API_TOKEN; '
+                               'no Pro weights were removed.') from None
 
 
 def download_file(url, destination, asset):
@@ -63,6 +87,14 @@ def _download_file(url, destination, asset):
         raise RuntimeError(f'Unverified existing file: {destination}. Move it aside before retrying; '
                            'the installer will not overwrite existing model files.')
     partial = destination.with_name(destination.name + '.part')
+    if partial.is_symlink():
+        raise RuntimeError(f'Refusing symlinked partial download: {partial}')
+    if partial.is_file():
+        with partial.open('rb') as stream:
+            prefix = stream.read(512).lstrip().lower()
+        if prefix.startswith((b'<!doctype html', b'<html')):
+            partial.unlink()
+            print(f'Discarded stale login-page partial: {partial.name}', flush=True)
     for attempt in range(3):
         offset = partial.stat().st_size if partial.exists() else 0
         if offset == asset['size']:
@@ -74,6 +106,7 @@ def _download_file(url, destination, asset):
             headers['Range'] = f'bytes={offset}-'
         try:
             with urlopen(Request(url, headers=headers), timeout=60) as response:
+                check_download_response(response)
                 if response.status == 206:
                     expected = f'bytes {offset}-{asset["size"] - 1}/{asset["size"]}'
                     if response.headers.get('Content-Range') != expected:
@@ -200,6 +233,7 @@ def prepare(volume_root, manifest, remove=False, allow_unmounted=False):
     root = checked_path(volume_root, 'models')
     root.mkdir(exist_ok=True)
     with download_lock(root / '.illustrious-install.lock'):
+        preflight_downloads(volume_root, manifest['assets'])
         remove_pro(volume_root, remove)
         for asset in manifest['assets']:
             download_file(asset_url(asset), checked_path(volume_root, 'models/' + asset['path']), asset)
