@@ -156,11 +156,22 @@ def checked_path(volume_root, relative):
 
 
 def remove_pro(volume_root, enabled):
-    paths = [checked_path(volume_root, 'models/qwen-21-pro/' + name) for name in (
+    root = Path(volume_root).absolute()
+    paths = [root / 'models/qwen-21-pro' / name for name in (
         'diffusion_models/qwen-image-2.1-UC-Q4_K_M.gguf',
         'text_encoders/qwen3vl_8b_int8_convrot.safetensors',
         'vae/qwen_image_2.1_vae_bf16.safetensors', 'model-manifest.json')]
     paths += [path.with_name(path.name + '.part') for path in paths]
+    # Keep lexical allowlisted paths for unlink; never delete a resolved target.
+    # Check every path/component before any removal, including partial files.
+    for path in paths:
+        checked_path(root, str(path.relative_to(root)))
+        if enabled:
+            for component in (path, *path.parents):
+                if not component.is_relative_to(root):
+                    break
+                if component.is_symlink():
+                    raise RuntimeError(f'Refusing Pro removal through symlink: {component}')
     existing = [path for path in paths if path.is_file()]
     print('Pro removal inventory:', flush=True)
     for path in existing:

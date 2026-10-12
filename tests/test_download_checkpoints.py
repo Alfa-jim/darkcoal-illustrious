@@ -12,6 +12,33 @@ spec.loader.exec_module(installer)
 
 
 class DownloadTests(unittest.TestCase):
+    def test_cleanup_rejects_symlink_component_before_deleting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pro = root / 'models/qwen-21-pro/diffusion_models/qwen-image-2.1-UC-Q4_K_M.gguf'
+            pro.parent.mkdir(parents=True)
+            pro.write_bytes(b'pro')
+            with patch.object(Path, 'is_symlink', autospec=True, side_effect=lambda p: p == pro.parent):
+                with self.assertRaisesRegex(RuntimeError, 'symlink'):
+                    installer.remove_pro(root, True)
+            self.assertEqual(pro.read_bytes(), b'pro')
+
+    def test_cleanup_rejects_symlink_to_turbo_inside_volume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            turbo = root / 'models/qwen-image-21/turbo.gguf'
+            turbo.parent.mkdir(parents=True)
+            turbo.write_bytes(b'keep')
+            pro = root / 'models/qwen-21-pro/diffusion_models/qwen-image-2.1-UC-Q4_K_M.gguf'
+            pro.parent.mkdir(parents=True)
+            try:
+                pro.symlink_to(turbo)
+            except OSError:
+                self.skipTest('Symlink creation unavailable on this Windows account')
+            with self.assertRaisesRegex(RuntimeError, 'symlink'):
+                installer.remove_pro(root, True)
+            self.assertEqual(turbo.read_bytes(), b'keep')
+
     def test_resume_appends_only_valid_range_and_verifies(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'weight'

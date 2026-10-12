@@ -1,4 +1,4 @@
-﻿name: Build and Push to GHCR (illustrious)
+ï»¿name: Build and Push to GHCR (illustrious)
 
 on:
   push:
@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -21,8 +23,12 @@ jobs:
       - run: node scripts/check_playground.cjs
       - run: python scripts/make_download_command.py --check
       - run: bash -n src/start.sh DOWNLOAD_ON_CPU_POD.sh
+      - name: Confirm assets-only changes do not alter the worker
+        if: contains(github.event.head_commit.message, '[assets-only]')
+        run: git diff --exit-code HEAD^ HEAD -- Dockerfile src handler.py requirements.txt scripts/smoke_nodes.py test_input.json
   build:
     needs: test
+    if: "!contains(github.event.head_commit.message, '[assets-only]')"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,7 +51,7 @@ jobs:
         id: owner
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      # No GHA cache — cache export was hanging 40 min (8 GB layers) and caused
+      # No GHA cache â€” cache export was hanging 40 min (8 GB layers) and caused
       # "The operation was canceled" after the image had already been pushed.
 
       - name: Build and push illustrious

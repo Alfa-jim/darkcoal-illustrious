@@ -12,7 +12,7 @@ function extract(name){
 function context(){
   const elements={};
   for(const [id,value] of Object.entries({checkpoint:'shirea',steps:'28',cfg:'6.5',sampler:'euler_ancestral',scheduler:'normal',width:'1024',height:'1024',seed:'42',batch:'1',dmd2Strength:'1'})) elements[id]={value};
-  const ctx=vm.createContext({IllustriousModels:models,mode:'txt2img',refs:[],getLoras:()=>[],log:()=>{},addLora:()=>{},clearLoras:()=>{},$:id=>elements[id]||=( {value:'',checked:false} )});
+  const ctx=vm.createContext({IllustriousModels:models,mode:'txt2img',refs:[],saveSettings:()=>{},getLoras:()=>[],log:()=>{},addLora:()=>{},clearLoras:()=>{},$:id=>elements[id]||=( {value:'',checked:false} )});
   return {ctx,elements};
 }
 test('real playground workflow selects either checkpoint with optional DMD2 conditioning',()=>{
@@ -41,6 +41,17 @@ test('DMD2 preset enables new LoRA and uses explicit starting settings',()=>{
   assert.equal(Number(elements.steps.value),6);
   assert.equal(Number(elements.cfg.value),1);
   assert.equal(elements.sampler.value,'euler');
+});
+test('button seed mutations persist without an input event',()=>{
+  const {ctx,elements}=context();
+  let saved=0;
+  ctx.saveSettings=()=>saved++;
+  ctx.lastSeed=123;
+  vm.runInContext(extract('randomSeed'),ctx);
+  vm.runInContext(extract('useLastSeed'),ctx);
+  vm.runInContext('randomSeed(); useLastSeed()',ctx);
+  assert.equal(saved,2);
+  assert.equal(elements.seed.value,123);
 });
 test('image references use registered IPAdapter nodes without a hidden browser flag',()=>{
   const {ctx,elements}=context();
