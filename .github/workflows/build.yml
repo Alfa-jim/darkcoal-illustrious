@@ -1,4 +1,4 @@
-ï»¿name: Build and Push to GHCR (illustrious)
+﻿name: Build and Push to GHCR (illustrious)
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
         id: owner
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      # No GHA cache â€” cache export was hanging 40 min (8 GB layers) and caused
+      # No GHA cache — cache export was hanging 40 min (8 GB layers) and caused
       # "The operation was canceled" after the image had already been pushed.
 
       - name: Build and push illustrious
