@@ -58,7 +58,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
 <body>
 <div class="topbar">
   <h1>darkcoal-illustrious</h1>
-  <span class="badge">Illustrious-XL-v2.0 · 4090 24GB · ghcr.io/alfa-jim/darkcoal-illustrious</span>
+  <span class="badge">Shirea 2D / IllustriousNXT XL · optional DMD2 · network-volume models</span>
   <input id="endpoint" type="text" value="" placeholder="RunPod endpoint URL (https://api.runpod.ai/v2/<endpoint-id>/runsync)"/>
   <input id="apikey" type="text" value="" placeholder="RunPod API key (rpa_...)"/>
   <button class="btn small ghost" onclick="toggleKeys()">hide keys</button>
@@ -99,10 +99,18 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
     <div id="inpaintHint" class="small hidden" style="margin-top:8px">For inpaint: upload image as <code>ref.png</code> and paint a mask (white = repaint) below, or upload a mask as <code>mask.png</code>.</div>
 
+    <h2>Checkpoint</h2>
+    <label for="checkpoint">Model for this generation</label>
+    <select id="checkpoint">
+      <option value="shirea">Shirea 2D · v1.0</option>
+      <option value="nxt">IllustriousNXT XL · v2.0</option>
+      <option value="base">Illustrious XL · base v2.0 (optional download)</option>
+    </select>
+    <div class="small" style="margin-top:6px">Switching may take longer while the worker loads the selected checkpoint.</div>
     <h2>Sampler</h2>
     <div class="row">
       <div><label>Steps</label><div class="range"><input id="steps" type="range" min="4" max="60" value="28"/><b id="steps_v">28</b></div></div>
-      <div><label>CFG</label><div class="range"><input id="cfg" type="range" min="1" max="12" step="0.1" value="6.5"/><b id="cfg_v">6.5</b></div></div>
+      <div><label>CFG</label><div class="range"><input id="cfg" type="range" min="0" max="12" step="0.1" value="6.5"/><b id="cfg_v">6.5</b></div></div>
     </div>
     <div class="row">
       <div><label>Sampler</label>
@@ -131,18 +139,22 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="small" style="margin-top:6px">4090 tip: 1024² ~10 GB, 1536² ~16 GB — keep ≤1216×832 if you chain LoRAs.</div>
 
     <h2>LoRAs</h2>
+    <label><input id="useDmd2" type="checkbox"/> Enable DMD2 V7.5 FIX acceleration</label>
+    <label for="dmd2Strength">DMD2 strength</label>
+    <input id="dmd2Strength" type="number" min="0" max="2" step="0.05" value="1"/>
+    <button class="btn small ghost" onclick="preset('turbo')">Apply DMD2 starting settings</button>
+    <div class="small">Starting point: 6 steps, CFG 1, Euler / Normal, strength 1. Settings remain editable. Disable DMD2 for ordinary sampling.</div>
     <div class="small">Put LoRAs in <code>/runpod-volume/models/loras/</code> (serverless) or <code>/workspace/models/loras/</code> (Pod). They appear via <code>extra_model_paths.yaml</code>. Entries below become <code>LoraLoader</code> nodes (after checkpoint).</div>
     <div class="small" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn small ghost" onclick="addLora('dmd2-speed-lora-sdxl-pony-illustrious',1)">+ DMD2 4-step (turbo quant)</button>
       <button class="btn small ghost" onclick="addLora('',0.8)">+ custom LoRA</button>
       <button class="btn small ghost" onclick="clearLoras()">clear</button>
     </div>
     <div id="loras" style="margin-top:8px"></div>
-    <div class="small" style="margin-top:6px">Turbo (creator says): <code>dmd2-speed-lora</code> @ <b>0.7</b> + <b>8 steps, CFG 1.4–1.8, LCM / Normal</b> (~2.5s). 4 steps works but washes out/mushy.</div>
+    <div class="small" style="margin-top:6px">DMD2 trades sampling iterations for speed; compare output with ordinary sampling for your prompts.</div>
 
     <h2>Image reference (IPAdapter)</h2>
-    <div class="small">Drop a face/style ref — wired as <code>LoadImage(ref) + CLIPVisionEncode + IPAdapterApply</code> (needs <code>ip-adapter_sdxl</code> + <code>clip_vision/model</code> on volume + <code>ComfyUI-IPAdapter-Plus</code> node baked). Leave off for plain txt2img.</div>
-    <label class="switch"><input id="useIPAdapter" type="checkbox" onchange="syncIPAdapter()"/> enable IPAdapter (image reference) <span class="small" style="color:var(--warn)">needs rebuild</span></label>
+    <div class="small">The first uploaded reference guides appearance through IPAdapter. Requires the updated worker image and reference weights on the volume. This differs from Qwen's ordered multi-image prompt conditioning.</div>
+    <label class="switch"><input id="useIPAdapter" type="checkbox" onchange="syncIPAdapter()"/> enable IPAdapter (image reference)</label>
     <div id="ipOpts" class="hidden">
       <label>Weight</label><div class="range"><input id="ipWeight" type="range" min="0" max="1.5" step="0.05" value="0.7"/><b id="ipWeight_v">0.70</b></div>
       <label>IPAdapter model</label><select id="ipAdapter"><option>ip-adapter_sdxl.safetensors</option><option>ip-adapter-plus_sdxl_vit-h.safetensors</option><option>ip-adapter-faceid-plusv2_sdxl.bin</option></select>
@@ -209,7 +221,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="small" style="margin-top:8px">Share link encodes prompt + settings + ref thumbnails are NOT in URL (too big) — share refs separately.</div>
 
     <h2>Presets</h2>
-    <div class="row"><button class="btn small ghost" onclick="preset('anime')">anime</button><button class="btn small ghost" onclick="preset('photo')">photo-ish</button><button class="btn small ghost" onclick="preset('turbo')">⚡ turbo 4-step</button></div>
+    <div class="row"><button class="btn small ghost" onclick="preset('anime')">anime</button><button class="btn small ghost" onclick="preset('photo')">photo-ish</button><button class="btn small ghost" onclick="preset('turbo')">DMD2 · 6 steps</button></div>
     <div class="row" style="margin-top:6px"><button class="btn small ghost" onclick="preset('portrait')">portrait</button><button class="btn small ghost" onclick="preset('landscape')">landscape</button></div>
 
     <h2>My Presets <span class="small" style="text-transform:none;letter-spacing:0">local only</span></h2>
@@ -221,7 +233,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     <h2>Endpoint</h2>
     <div class="kv">
       Image: <b>ghcr.io/alfa-jim/darkcoal-illustrious:latest</b><br/>
-      Disk: <b>50 GB</b> · GPU <b>4090 24GB</b> · model <b>Illustrious-XL-v2.0</b> baked<br/>
+      Container disk: <b>30 GB+</b> · GPU <b>4090 24GB</b> · checkpoints on the <b>network volume</b><br/>
       Try <b>/runsync</b> (sync) or <a href="#" onclick="setEndpointMode('run');return false">/run</a> (async poll). Current: <b id="epMode">runsync</b>
     </div>
     <label>Endpoint path</label>
@@ -230,6 +242,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
+<script src="model-options.js"></script>
 <script>
 const $ = s => document.getElementById(s);
 let mode = 'txt2img';
@@ -379,12 +392,14 @@ function pastePrompt(){ navigator.clipboard.readText().then(t=> $('prompt').valu
 function syncIPAdapter(){ $('ipOpts').classList.toggle('hidden', !$('useIPAdapter').checked); }
 $('ipWeight')?.addEventListener('input',()=> $('ipWeight_v').textContent=Number($('ipWeight').value).toFixed(2));
 function preset(k){
+  if(k==='anime'||k==='photo') $('useDmd2').checked=false;
   if(k==='anime'){ $('prompt').value='masterpiece, best quality, anime, 1girl, detailed face, soft lighting, intricate background'; $('neg').value='lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'; $('steps').value=28; $('cfg').value=6.5; $('sampler').value='euler_ancestral'; $('scheduler').value='normal'; clearLoras(); }
   if(k==='photo'){ $('prompt').value='masterpiece, best quality, photo, 1girl, realistic skin, natural lighting, bokeh'; $('cfg').value=5; $('sampler').value='dpmpp_2m'; $('scheduler').value='karras'; }
-  if(k==='turbo'){ clearLoras(); addLora('dmd2-speed-lora-sdxl-pony-illustrious',0.7); $('steps').value=8; $('cfg').value=1.6; $('sampler').value='lcm'; $('scheduler').value='normal'; log('turbo: DMD2 8-step 0.7 cfg 1.6 lcm/normal (Civitai creator recommended)'); }
+  if(k==='turbo'){ $('useDmd2').checked=true; $('dmd2Strength').value=1; $('steps').value=6; $('cfg').value=1; $('sampler').value='euler'; $('scheduler').value='normal'; log('DMD2 V7.5 FIX starting point: 6 steps, CFG 1, Euler / Normal, strength 1'); }
   if(k==='portrait'){ $('width').value=832; $('height').value=1216; $('steps').value=28; }
   if(k==='landscape'){ $('width').value=1216; $('height').value=832; $('steps').value=28; }
   ['steps','cfg'].forEach(id=>{ const v=$(id+'_v'); if(v) v.textContent=$(id).value; });
+  try{ localStorage.setItem('illustrious.settings.v2',JSON.stringify(captureSettings())); }catch(e){}
 }
 
 function syncEndpoint(){ epMode=$('epPath').value; $('epMode').textContent=epMode; }
@@ -396,7 +411,7 @@ function getMyPresets(){ try{ return JSON.parse(localStorage.getItem(PRESET_KEY)
 function setMyPresets(a){ localStorage.setItem(PRESET_KEY, JSON.stringify(a)); }
 function captureSettings(){
   return {
-    mode, prompt:$('prompt').value, neg:$('neg').value,
+    mode, checkpoint:$('checkpoint').value, useDmd2:$('useDmd2').checked, dmd2Strength:$('dmd2Strength').value, prompt:$('prompt').value, neg:$('neg').value,
     steps:$('steps').value, cfg:$('cfg').value, sampler:$('sampler').value, scheduler:$('scheduler').value,
     denoise:$('denoise')?.value||'0.65', width:$('width').value, height:$('height').value, batch:$('batch').value,
     seed:$('seed').value, loras:getLoras(), useIP:$('useIPAdapter')?.checked||false, ipWeight:$('ipWeight')?.value||'0.7', ipAdapter:$('ipAdapter')?.value||'ip-adapter_sdxl.safetensors',
@@ -404,6 +419,9 @@ function captureSettings(){
   };
 }
 function applySettings(s){
+  if(s.checkpoint && Object.hasOwn(IllustriousModels.CHECKPOINTS,s.checkpoint)) $('checkpoint').value=s.checkpoint;
+  $('useDmd2').checked=!!s.useDmd2;
+  if(s.dmd2Strength!==undefined) $('dmd2Strength').value=s.dmd2Strength;
   if(s.mode) setMode(s.mode);
   if(s.prompt!==undefined) $('prompt').value=s.prompt;
   if(s.neg!==undefined) $('neg').value=s.neg;
@@ -427,6 +445,7 @@ function applySettings(s){
   ['steps','cfg','denoise','hiresDenoise','ipWeight'].forEach(id=>{ const v=$(id+'_v'); const el=$(id); if(v&&el) v.textContent = id==='ipWeight'||id==='hiresDenoise' ? Number(el.value).toFixed(2) : el.value; });
   buildWorkflow();
   log('loaded preset: '+(s.name||'(unnamed)'));
+  try{ localStorage.setItem('illustrious.settings.v2',JSON.stringify(captureSettings())); }catch(e){}
 }
 function savePreset(){
   const name=prompt('Preset name:', $('prompt').value.slice(0,48) || 'preset '+new Date().toLocaleString());
@@ -532,7 +551,7 @@ function buildWorkflow(){
   lastSeed = seedVal;
   $('seedInfo').textContent = 'seed '+seedVal;
   const denoise = mode==='txt2img' ? 1 : Number($('denoise').value);
-  const loras = getLoras();
+  const loras = IllustriousModels.selectedLoras(getLoras(),$('useDmd2').checked,$('dmd2Strength').value);
   const useIP = $('useIPAdapter')?.checked && refs.length>0;
 
   // nodes: 30 checkpoint, 27 latent or 10+11 image, 6 positive, 33 negative, 31 sampler, 8 vae decode, 9 save, 38 preview
@@ -540,7 +559,7 @@ function buildWorkflow(){
   const wf = {};
 
   // 30 checkpoint
-  wf["30"] = { inputs:{ ckpt_name:"Illustrious-XL-v2.0.safetensors" }, class_type:"CheckpointLoaderSimple" };
+  wf["30"] = { inputs:{ ckpt_name:IllustriousModels.checkpointFile($('checkpoint').value) }, class_type:"CheckpointLoaderSimple" };
   let modelNode = "30", clipNode = "30";
 
   // LoRA chain
@@ -590,25 +609,19 @@ function buildWorkflow(){
   // prompts — hook clip from last lora if present
   let clipRef = loras.length ? [String(100+loras.length-1),1] : ["30",1];
   let modelRef = loras.length ? [String(100+loras.length-1),0] : ["30",0];
-  // IPAdapter: inject before prompt so conditioning carries it
-  // NOTE: currently disabled — your deployed FAST image has no IPAdapter node (Node "#72" missing).
-  // Leave toggle off until you rebuild/push Dockerfile fix; otherwise ComfyUI 400s.
-  // Keeping wiring guarded behind both toggle AND a localStorage flag so old workers don't explode.
-  const ipEnabledOnServer = (()=>{ try{ return localStorage.getItem('illustrious.ipadapterServer')==='1'; }catch{ return false; }})();
-  if (useIP && ipEnabledOnServer){
+  // The updated container registers these pinned IPAdapter nodes at build time.
+  if (useIP){
     const ipName = $('ipAdapter')?.value || 'ip-adapter_sdxl.safetensors';
-    const ipW = parseFloat($('ipWeight')?.value)||0.7;
+    const ipW = Number($('ipWeight')?.value ?? 0.7);
     const ipImgNode = "70";
     const ipClipVisNode = "71";
     const ipLoadNode = "72";
     const ipApplyNode = "73";
     wf[ipImgNode] = { inputs:{ image: refs[0].name }, class_type:"LoadImage" };
     wf[ipClipVisNode] = { inputs:{ clip_name: "model.safetensors" }, class_type:"CLIPVisionLoader" };
-    wf[ipLoadNode] = { inputs:{ ipadapter_file: ipName }, class_type:"IPAdapterLoader" };
-    wf[ipApplyNode] = { inputs:{ model: modelRef, ipadapter: [ipLoadNode,0], image: [ipImgNode,0], clip_vision: [ipClipVisNode,0], weight: ipW, weight_type:"original" }, class_type:"IPAdapterApply" };
+    wf[ipLoadNode] = { inputs:{ ipadapter_file: ipName }, class_type:"IPAdapterModelLoader" };
+    wf[ipApplyNode] = { inputs:{ model: modelRef, ipadapter: [ipLoadNode,0], image: [ipImgNode,0], clip_vision: [ipClipVisNode,0], weight: ipW, weight_type:"linear", combine_embeds:"concat", start_at:0, end_at:1, embeds_scaling:"V only" }, class_type:"IPAdapterAdvanced" };
     modelRef = [ipApplyNode,0];
-  } else if(useIP){
-    log('IPAdapter checked but server image lacks the node — ignoring IPAdapter for this run (rebuild needed). Uncheck it or set localStorage illustrious.ipadapterServer=1 after rebuilding.');
   }
   wf["6"] = { inputs:{ text: $('prompt').value, clip: clipRef }, class_type:"CLIPTextEncode" };
   wf["33"] = { inputs:{ text: $('neg').value, clip: clipRef }, class_type:"CLIPTextEncode" };
@@ -755,11 +768,14 @@ function copyShareLink(){
 
 // wire initial
 setMode('txt2img');
+try{ const saved=JSON.parse(localStorage.getItem('illustrious.settings.v2')||'null'); if(saved) applySettings(saved); }catch(e){ log('Could not restore settings: '+e.message); }
+document.addEventListener('change',()=>{ try{ localStorage.setItem('illustrious.settings.v2',JSON.stringify(captureSettings())); }catch(e){} });
+document.addEventListener('input',()=>{ try{ localStorage.setItem('illustrious.settings.v2',JSON.stringify(captureSettings())); }catch(e){} });
 $('steps').dispatchEvent(new Event('input')); $('cfg').dispatchEvent(new Event('input'));
 $('hiresDenoise').addEventListener('input',()=> $('hiresDenoise_v').textContent=$('hiresDenoise').value);
 renderMyPresets();
 buildWorkflow();
-log('ready — set endpoint + key, pick mode, generate. FAST: checkpoint + DMD2 + IPAdapter on /runpod-volume (Pod also /workspace). Turbo preset = 4-step DMD2 ~1.5s.');
+log('ready — choose Shirea or NXT. DMD2 is optional. Models live on the network volume.');
 </script>
 </body>
 </html>

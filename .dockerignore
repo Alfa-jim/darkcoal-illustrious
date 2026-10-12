@@ -2,3 +2,7 @@ node_modules
 .changeset
 .git
 .github
+.validation
+__pycache__
+**/__pycache__
+DOWNLOAD_ON_CPU_POD.sh

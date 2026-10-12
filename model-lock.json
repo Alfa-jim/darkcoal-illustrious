@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "assets": [
+    {
+      "path": "checkpoints/illustriousShirea2D_v10.safetensors",
+      "size": 6938040366,
+      "sha256": "d4ef5bdeeb4742da4d883bcea0bc464524d502d7b196c923119f28f8c33ca24e",
+      "url": "https://civitai.com/api/download/models/2570670?fileId=2458999"
+    },
+    {
+      "path": "checkpoints/illustriousnxtXLBy_v20.safetensors",
+      "size": 6938040682,
+      "sha256": "6c4fc4895d0a4fa220e6fd51a85b08f9834352579c019c3658fb023e4526673f",
+      "url": "https://civitai.com/api/download/models/2069051?fileId=1965394"
+    },
+    {
+      "path": "loras/HerrscherAGGA2026_DMD2_BTN_V75_FIX.safetensors",
+      "size": 858008352,
+      "sha256": "ec5d578bb2976ee17f15de01dd440d570cb3726b2e09ed61f627361327813d00",
+      "url": "https://civitai.com/api/download/models/2935186?fileId=2814358"
+    },
+    {
+      "path": "ipadapter/ip-adapter_sdxl.safetensors",
+      "size": 702585376,
+      "sha256": "ba1002529e783604c5f326d49f0122025392d1d20ac8d573b3eeb3e6dea4ebb6",
+      "url": "https://huggingface.co/h94/IP-Adapter/resolve/018e402774aeeddd60609b4ecdb7e298259dc729/sdxl_models/ip-adapter_sdxl.safetensors"
+    },
+    {
+      "path": "clip_vision/model.safetensors",
+      "size": 3689912664,
+      "sha256": "657723e09f46a7c3957df651601029f66b1748afb12b419816330f16ed45d64d",
+      "url": "https://huggingface.co/h94/IP-Adapter/resolve/018e402774aeeddd60609b4ecdb7e298259dc729/sdxl_models/image_encoder/model.safetensors"
+    },
+    {
+      "path": "clip_vision/config.json",
+      "size": 2013,
+      "sha256": "1d53c2b4b74c5f85171d313adda3e3b8771ff5c698ee66a29710d0ac822298e4",
+      "url": "https://huggingface.co/h94/IP-Adapter/raw/018e402774aeeddd60609b4ecdb7e298259dc729/sdxl_models/image_encoder/config.json"
+    }
+  ]
+}

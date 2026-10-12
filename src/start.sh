@@ -78,9 +78,11 @@ if [ "${USE_NETWORK_VOLUME:-true}" = "true" ]; then
   fi
 
   MISSING=""
-  for f in "/runpod-volume/models/checkpoints/Illustrious-XL-v2.0.safetensors"; do
-    [ -f "$f" ] || MISSING="$MISSING $f"
+  CHECKPOINT_COUNT=0
+  for name in illustriousShirea2D_v10.safetensors illustriousnxtXLBy_v20.safetensors Illustrious-XL-v2.0.safetensors; do
+    [ ! -f "/runpod-volume/models/checkpoints/$name" ] || CHECKPOINT_COUNT=$((CHECKPOINT_COUNT + 1))
   done
+  [ "$CHECKPOINT_COUNT" -gt 0 ] || MISSING=" supported Illustrious checkpoint"
   if [ -n "$MISSING" ]; then
     echo "worker-comfyui: WARNING — USE_NETWORK_VOLUME=true but missing on /runpod-volume:$MISSING" >&2
     echo "worker-comfyui: FAST image does not bake the checkpoint — populate the volume:" >&2
@@ -94,9 +96,11 @@ if [ "${USE_NETWORK_VOLUME:-true}" = "true" ]; then
     echo 'worker-comfyui:   curl -L -C - -o /runpod-volume/models/clip_vision/model.safetensors https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/model.safetensors' >&2
     echo 'worker-comfyui:   curl -L -C - -o /runpod-volume/models/clip_vision/config.json https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/config.json' >&2
   else
-    echo "worker-comfyui: FAST volume check OK — Illustrious-XL-v2.0 present on /runpod-volume"
-    ls -lh /runpod-volume/models/checkpoints/Illustrious-XL-v2.0.safetensors 2>&1 | sed 's/^/worker-comfyui:   /'
-    for opt in "/runpod-volume/models/loras/dmd2-speed-lora-sdxl-pony-illustrious.safetensors" "/runpod-volume/models/ipadapter/ip-adapter_sdxl.safetensors"; do
+    echo "worker-comfyui: Volume check OK — $CHECKPOINT_COUNT supported checkpoint(s) present"
+    for name in illustriousShirea2D_v10.safetensors illustriousnxtXLBy_v20.safetensors Illustrious-XL-v2.0.safetensors; do
+      [ ! -f "/runpod-volume/models/checkpoints/$name" ] || ls -lh "/runpod-volume/models/checkpoints/$name"
+    done
+    for opt in "/runpod-volume/models/loras/HerrscherAGGA2026_DMD2_BTN_V75_FIX.safetensors" "/runpod-volume/models/ipadapter/ip-adapter_sdxl.safetensors"; do
       [ -f "$opt" ] && ls -lh "$opt" 2>&1 | sed 's/^/worker-comfyui:   + /' || echo "worker-comfyui:   (optional) $opt not present — ok" | sed 's/^/worker-comfyui:   /'
     done
   fi

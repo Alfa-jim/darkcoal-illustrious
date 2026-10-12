@@ -195,3 +195,6 @@ To enable SSH access to the worker, set the `PUBLIC_KEY` environment variable to
 - **[Development Guide](docs/development.md):** Setting up a local environment for development & testing
 - **[CI/CD Guide](docs/ci-cd.md):** Information about the automated Docker build and publish workflows.
 - **[Acknowledgments](docs/acknowledgments.md):** Credits and thanks
+# Multiple checkpoints
+
+The current playground supports Shirea 2D v1.0, IllustriousNXT XL v2.0 and optional DMD2 V7.5 FIX on the network volume. See [installation, settings and validation](MULTI_CHECKPOINT.md). The setup instructions below describe the original worker and may refer to the original checkpoint.

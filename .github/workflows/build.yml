@@ -6,7 +6,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m unittest discover -s tests -p test_download_checkpoints.py
+      - run: node --test tests/model-options.test.cjs
+      - run: node scripts/check_playground.cjs
+      - run: python scripts/make_download_command.py --check
+      - run: bash -n src/start.sh DOWNLOAD_ON_CPU_POD.sh
   build:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,3 +63,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:latest
             ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:illustrious
+            ghcr.io/${{ steps.owner.outputs.owner }}/darkcoal-illustrious:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
